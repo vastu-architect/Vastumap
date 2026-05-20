@@ -21,7 +21,7 @@ imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r
 overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>addOverlayImage({src:x.target.result});r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.oninput=e=>plan.style.opacity=e.target.value/100;
 function setPlanRot(v){let n=nd(v),delta=n-lastPlanRot;planRot.value=Math.round(n);plan.style.transform=`translate(-50%,-50%) rotate(${n}deg)`;document.querySelectorAll(".vastu-grid").forEach(g=>{if(g.dataset.locked==="true"){let d=nd((+g.dataset.rot||0)+delta);g.dataset.rot=d;g.style.transform=`rotate(${d}deg)`;if(g===sel)updGridPanel()}});lastPlanRot=n}function stepPlan(x){pushHistory();setPlanRot((+planRot.value||0)+x)}
-function addGrid(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();gridCounter++;let g=document.createElement("div");g.className="vastu-grid";g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;g.classList.toggle("locked", g.dataset.locked==="true");(d.directions??names).forEach((t,i)=>{let c=document.createElement("div");c.className="cell p"+(i+1);c.style.opacity=g.dataset.op/100;let inp=document.createElement("input");inp.value=t;inp.oninput=buildInputs;c.appendChild(inp);g.appendChild(c)});["nw","ne","sw","se"].forEach(p=>{let h=document.createElement("div");h.className="handle "+p;h.onmousedown=startResize;h.ontouchstart=startResize;g.appendChild(h)});let rh=document.createElement("div");rh.className="rotate-handle";rh.onmousedown=startRot;rh.ontouchstart=startRot;g.appendChild(rh);g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};canvas.appendChild(g);select(g,"grid")}
+function addGrid(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();gridCounter++;let g=document.createElement("div");g.className="vastu-grid";g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;g.classList.toggle("locked", g.dataset.locked==="true");(d.directions??names).forEach((t,i)=>{let c=document.createElement("div");c.className="cell p"+(i+1);c.style.opacity=g.dataset.op/100;let inp=document.createElement("input");inp.value=t;inp.oninput=buildInputs;c.appendChild(inp);g.appendChild(c)});["nw","n","ne","e","se","s","sw","w"].forEach(p=>{let h=document.createElement("div");h.className="handle "+p;h.onmousedown=startResize;h.ontouchstart=startResize;g.appendChild(h)});let rh=document.createElement("div");rh.className="rotate-handle";rh.onmousedown=startRot;rh.ontouchstart=startRot;g.appendChild(rh);g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};canvas.appendChild(g);select(g,"grid")}
 function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();}
 function updGridPanel(){
  if(!sel||selType!="grid")return;
@@ -225,7 +225,7 @@ function addPurushaGrid(d={}){
  img.src=wrap.dataset.src;
  wrap.appendChild(img);
 
- ["nw","ne","sw","se"].forEach(pos=>{
+ ["nw","n","ne","e","se","s","sw","w"].forEach(pos=>{
    const h=document.createElement("div");
    h.className="purusha-handle "+pos;
    h.onmousedown=startPurushaResize;
@@ -306,7 +306,7 @@ function startPurushaResize(e){
  if(wrap.dataset.locked==="true"){drag=null;return;}
  pushHistory();
  const p=point(e);
- const handle=[...e.target.classList].find(c=>["nw","ne","sw","se"].includes(c)) || "se";
+ const handle=[...e.target.classList].find(c=>["nw","n","ne","e","se","s","sw","w"].includes(c)) || "se";
  drag={type:"purusha-resize",el:wrap,handle,x:p.x,y:p.y,w:wrap.offsetWidth,h:wrap.offsetHeight,l:parseFloat(wrap.style.left),t:parseFloat(wrap.style.top)};
  bind();
 }
@@ -473,8 +473,8 @@ isRestoring=true;
 applyZoom();
 addGrid();
 isRestoring=false;
-</script>
-<script>
+
+
 (function(){
   function installTwoRowsButton(){
     let btn = document.getElementById('twoRowsBtn');
@@ -497,3 +497,216 @@ isRestoring=false;
     installTwoRowsButton();
   }
 })();
+
+/* ===== VastuMap stability + 8-point resize upgrade ===== */
+(function(){
+  const EIGHT_POINTS = ["nw","n","ne","e","se","s","sw","w"];
+
+  function ensureEightHandles(selector, handleClass, resizeHandler){
+    document.querySelectorAll(selector).forEach(el=>{
+      EIGHT_POINTS.forEach(pos=>{
+        if(!el.querySelector("." + handleClass + "." + pos)){
+          const h=document.createElement("div");
+          h.className=handleClass + " " + pos;
+          h.onmousedown=resizeHandler;
+          h.ontouchstart=resizeHandler;
+          el.appendChild(h);
+        }
+      });
+    });
+  }
+
+  window.refreshVastuHandles = function(){
+    if(typeof startResize === "function"){
+      ensureEightHandles(".vastu-grid", "handle", startResize);
+    }
+    if(typeof startPurushaResize === "function"){
+      ensureEightHandles(".purusha-grid", "purusha-handle", startPurushaResize);
+    }
+  };
+
+  // Upgrade current and future elements after page actions.
+  const oldAddGrid = window.addGrid;
+  window.addGrid = function(d={}){
+    const result = oldAddGrid.apply(this, arguments);
+    window.refreshVastuHandles();
+    return result;
+  };
+
+  const oldAddPurushaGrid = window.addPurushaGrid;
+  window.addPurushaGrid = function(d={}){
+    const result = oldAddPurushaGrid.apply(this, arguments);
+    window.refreshVastuHandles();
+    return result;
+  };
+
+  const oldLoadProject = window.loadProject;
+  if(typeof oldLoadProject === "function"){
+    window.loadProject = function(){
+      const result = oldLoadProject.apply(this, arguments);
+      window.refreshVastuHandles();
+      return result;
+    };
+  }
+
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", window.refreshVastuHandles);
+  }else{
+    window.refreshVastuHandles();
+  }
+})();
+
+// Перезаписываем startResize: теперь 3×3 сетка меняется за 8 точек.
+// Углы меняют ширину и высоту, стороны — только одну ось.
+function startResize(e){
+ e.preventDefault();e.stopPropagation();
+ const g=e.target.closest(".vastu-grid");
+ select(g,"grid");
+ if(g.dataset.locked==="true"){drag=null;return;}
+ pushHistory();
+
+ const p=point(e);
+ const handle=[...e.target.classList].find(c=>["nw","n","ne","e","se","s","sw","w"].includes(c)) || "se";
+ const l=parseFloat(g.style.left), t=parseFloat(g.style.top), w=g.offsetWidth, h=g.offsetHeight;
+ const rot=(+g.dataset.rot||0) * Math.PI / 180;
+ const cx=l+w/2, cy=t+h/2;
+
+ const sx = handle.includes("e") ? 1 : (handle.includes("w") ? -1 : 0);
+ const sy = handle.includes("s") ? 1 : (handle.includes("n") ? -1 : 0);
+ const affectsX = sx !== 0;
+ const affectsY = sy !== 0;
+
+ function toWorld(localX, localY){
+   return {
+     x: cx + localX*Math.cos(rot) - localY*Math.sin(rot),
+     y: cy + localX*Math.sin(rot) + localY*Math.cos(rot)
+   };
+ }
+
+ const fixedLocal = {
+   x: affectsX ? -sx*w/2 : 0,
+   y: affectsY ? -sy*h/2 : 0
+ };
+
+ drag={
+   type:"resize",
+   el:g,
+   handle,
+   sx, sy,
+   affectsX, affectsY,
+   rot,
+   fixedWorld:toWorld(fixedLocal.x, fixedLocal.y),
+   startW:w,
+   startH:h,
+   min:120
+ };
+ bind();
+}
+
+// Перезаписываем startPurushaResize: Пуруша-сетка тоже получает 8 точек.
+function startPurushaResize(e){
+ e.preventDefault();e.stopPropagation();
+ const wrap=e.target.closest(".purusha-grid");
+ select(wrap,"purusha");
+ if(wrap.dataset.locked==="true"){drag=null;return;}
+ pushHistory();
+ const p=point(e);
+ const handle=[...e.target.classList].find(c=>["nw","n","ne","e","se","s","sw","w"].includes(c)) || "se";
+ drag={type:"purusha-resize",el:wrap,handle,x:p.x,y:p.y,w:wrap.offsetWidth,h:wrap.offsetHeight,l:parseFloat(wrap.style.left),t:parseFloat(wrap.style.top)};
+ bind();
+}
+
+// Единый обработчик движения с более стабильным resize.
+function move(e){
+ if(!drag)return;
+ e.preventDefault();
+ const p=point(e);
+
+ if(drag.type=="drag"||drag.type=="generic"){
+   if(drag.el.classList&&drag.el.classList.contains("vastu-grid")&&drag.el.dataset.locked==="true")return;
+   drag.el.style.left=drag.l+(p.x-drag.x)+"px";
+   drag.el.style.top=drag.t+(p.y-drag.y)+"px";
+ }
+
+ if(drag.type=="resize"){
+   if(drag.el.dataset.locked==="true")return;
+
+   const cos=Math.cos(-drag.rot), sin=Math.sin(-drag.rot);
+   const vx=p.x-drag.fixedWorld.x;
+   const vy=p.y-drag.fixedWorld.y;
+   const localX=vx*cos - vy*sin;
+   const localY=vx*sin + vy*cos;
+
+   let newW = drag.affectsX ? Math.max(drag.min, Math.abs(localX)) : drag.startW;
+   let newH = drag.affectsY ? Math.max(drag.min, Math.abs(localY)) : drag.startH;
+
+   const centerLocalX = drag.affectsX ? drag.sx*newW/2 : 0;
+   const centerLocalY = drag.affectsY ? drag.sy*newH/2 : 0;
+   const rot=drag.rot;
+   const centerWorld={
+     x:drag.fixedWorld.x + centerLocalX*Math.cos(rot) - centerLocalY*Math.sin(rot),
+     y:drag.fixedWorld.y + centerLocalX*Math.sin(rot) + centerLocalY*Math.cos(rot)
+   };
+
+   drag.el.style.width=newW+"px";
+   drag.el.style.height=newH+"px";
+   drag.el.style.left=(centerWorld.x-newW/2)+"px";
+   drag.el.style.top=(centerWorld.y-newH/2)+"px";
+   if(drag.el===sel)updGridPanel();
+ }
+
+ if(drag.type=="overlay-resize"){
+   if(drag.el.dataset.locked==="true")return;
+   let dx=p.x-drag.x, dy=p.y-drag.y;
+   const aspect=drag.w/drag.h;
+   let delta=0;
+   if(drag.handle.includes("e")) delta=dx;
+   if(drag.handle.includes("w")) delta=-dx;
+   if(Math.abs(dy)>Math.abs(delta)){
+     if(drag.handle.includes("s")) delta=dy*aspect;
+     if(drag.handle.includes("n")) delta=-dy*aspect;
+   }
+   let newW=Math.max(50, drag.w+delta);
+   let newH=newW/aspect;
+   let newL=drag.l, newT=drag.t;
+   if(drag.handle.includes("w")) newL=drag.l+(drag.w-newW);
+   if(drag.handle.includes("n")) newT=drag.t+(drag.h-newH);
+   drag.el.style.width=newW+"px";
+   drag.el.style.left=newL+"px";
+   drag.el.style.top=newT+"px";
+   drag.el.dataset.width=Math.round(newW);
+   if(drag.el===sel)updOverlayPanel();
+ }
+
+ if(drag.type=="purusha-resize"){
+   if(drag.el.dataset.locked==="true")return;
+   let dx=p.x-drag.x, dy=p.y-drag.y;
+   let newW=drag.w, newH=drag.h, newL=drag.l, newT=drag.t;
+
+   if(drag.handle.includes("e")) newW=Math.max(80, drag.w+dx);
+   if(drag.handle.includes("s")) newH=Math.max(80, drag.h+dy);
+   if(drag.handle.includes("w")) { newW=Math.max(80, drag.w-dx); newL=drag.l+(drag.w-newW); }
+   if(drag.handle.includes("n")) { newH=Math.max(80, drag.h-dy); newT=drag.t+(drag.h-newH); }
+
+   drag.el.style.width=newW+"px";
+   drag.el.style.height=newH+"px";
+   drag.el.style.left=newL+"px";
+   drag.el.style.top=newT+"px";
+   drag.el.dataset.width=Math.round(newW);
+   drag.el.dataset.height=Math.round(newH);
+   if(drag.el===sel)updPurushaPanel();
+ }
+
+ if(drag.type=="rot"){
+   if(drag.el.dataset.locked==="true")return;
+   let deg=Math.round(nd(Math.atan2(p.y-drag.cy,p.x-drag.cx)*180/Math.PI+90));
+   if(drag.el.classList && drag.el.classList.contains("purusha-grid")){
+     drag.el.dataset.rotation=deg;
+   }else{
+     drag.el.dataset.rot=deg;
+   }
+   drag.el.style.transform=`rotate(${deg}deg)`;
+   if(drag.el===sel && selType==="grid")updGridPanel();
+   if(drag.el===sel && selType==="purusha")updPurushaPanel();
+ }
+}
