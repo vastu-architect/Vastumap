@@ -634,3 +634,49 @@ font-size:12px!important;
 
 }
 
+
+
+
+/* ===== Toolbar alignment fix ===== */
+
+.toolbar{
+grid-template-columns:
+repeat(8,minmax(82px,max-content))
+minmax(150px,220px)
+minmax(120px,180px)!important;
+justify-content:start!important;
+overflow-x:auto!important;
+overflow-y:hidden!important;
+padding-right:24px!important;
+}
+
+.toolbar .control{
+align-items:center!important;
+justify-content:center!important;
+text-align:center!important;
+}
+
+.toolbar .control > div{
+display:flex!important;
+align-items:center!important;
+justify-content:center!important;
+gap:4px!important;
+white-space:nowrap!important;
+}
+
+.toolbar button{
+white-space:nowrap!important;
+}
+
+.toolbar input[type=range]{
+width:82px!important;
+}
+
+@media (max-width:900px){
+
+.toolbar{
+grid-template-columns:repeat(4,minmax(74px,1fr))!important;
+}
+
+}
+
