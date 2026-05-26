@@ -1,35 +1,233 @@
-<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/><title>Vastu Map Builder Pro 2</title><meta name="theme-color" content="#f5f5f7"/><link rel="stylesheet" href="style.css"></head><body><header><h1>Vastu Map Builder Pro 2</h1></header><div class="toolbar">
-<div class="control"><label>Планировка</label><input type="file" accept="image/*" id="imageInput"></div><div class="control"><label>Доп. картинка</label><input type="file" accept="image/*" id="overlayInput"></div><button onclick="addGrid()">+ Сетка 3×3</button><button onclick="addPurushaGrid()">+ Пуруша-сетка</button><button onclick="addTextLabel()">+ Надпись</button><button class="red" onclick="addSticker('red')">★ красная</button><button class="green" onclick="addSticker('green')">★ зеленая</button><button onclick="resizeSticker(1)">★ +</button><button onclick="resizeSticker(-1)">★ −</button><button class="secondary" onclick="addAxes()">+ Оси</button><button class="danger" onclick="delSel()">Удалить</button><button class="secondary" onclick="undoLast()">Отмена</button><button class="secondary" onclick="redoLast()">Повтор</button><button class="secondary" onclick="togglePanel()">Скрыть/показать панель</button><button onclick="zoomAll(-0.1)">− масштаб</button><button onclick="zoomAll(0.1)">+ масштаб</button><span class="badge">Масштаб: <span id="zoomTxt">100</span>%</span><div class="control"><label>Поворот плана</label><div><button onclick="stepPlan(-1)">−1°</button><input type="number" value="0" id="planRot"><button onclick="stepPlan(1)">+1°</button></div></div><div class="control"><label>Прозрачность плана</label><input type="range" min="10" max="100" value="85" id="planOpacity"></div><button class="secondary" onclick="saveProject()">Сохранить</button></div>
-<div class="layout"><div class="workspace"><div class="canvas" id="canvas"><img id="planImage"></div></div><aside class="sidepanel"><h3>Проект / экспорт</h3><div class="control"><label>Открыть проект</label><input type="file" accept=".json" id="projectInput"></div><div style="display:flex;gap:8px;margin:8px 0 14px"><button onclick="exportPNG()">PNG</button><button onclick="exportPDF()">PDF</button></div><h3>Сетка</h3><p class="hint">Сетку можно двигать, вращать за оранжевую точку, менять размер за любой угол. Пропорции сохраняются.</p><div class="row"><span>Поворот сетки</span><span class="badge"><span id="gridDeg">0</span>°</span></div><button onclick="stepGrid(-1)">−1°</button><input type="number" value="0" id="gridRot"><button onclick="stepGrid(1)">+1°</button><p><label><input type="checkbox" id="lockGrid"> Зафиксировать сетку</label></p><p><label><input type="checkbox" id="lockAxes"> Зафиксировать оси</label></p><div class="row"><span>Прозрачность сетки</span><span class="badge"><span id="gridOpTxt">62</span>%</span></div><input type="range" min="0" max="100" value="62" id="gridOp"><div class="row"><span>Размер</span><span class="badge"><span id="gridSizeTxt">480×480</span></span></div><input type="range" min="150" max="1200" value="480" id="gridSize"><div class="row"><span>Ширина</span><span class="badge"><span id="gridWidthTxt">480</span>px</span></div><input type="range" min="150" max="1400" value="480" id="gridWidth"><div class="row"><span>Высота</span><span class="badge"><span id="gridHeightTxt">480</span>px</span></div><input type="range" min="150" max="1100" value="480" id="gridHeight"><h3>Авто-направления</h3><p class="hint">Укажи, в какой ячейке Север. Остальные направления расставятся автоматически.</p><select id="northCell"><option value="0">1 верх-лево</option><option value="1" selected>2 верх-центр</option><option value="2">3 верх-право</option><option value="3">4 центр-лево</option><option value="5">6 центр-право</option><option value="6">7 низ-лево</option><option value="7">8 низ-центр</option><option value="8">9 низ-право</option></select><button onclick="autoDirections()">Проставить</button><h3>Оси</h3>
-<div class="row"><span>Длина лучей</span><span class="badge"><span id="axisLenTxt">1800</span>px</span></div>
-<input type="range" min="200" max="2400" value="1800" id="axisLen">
-<div class="row"><span>Прозрачность осей</span><span class="badge"><span id="axisOpTxt">100</span>%</span></div>
-<input type="range" min="0" max="100" value="100" id="axisOp">
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f3ef">
+  <title>Vastu Studio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div>
+        <h1>Vastu Studio</h1>
+        <p>План и анализ пространства</p>
+      </div>
+    </div>
+    <nav class="project-actions" aria-label="Проект">
+      <label class="action primary file-action">Загрузить план<input type="file" accept="image/*" id="imageInput"></label>
+      <label class="action file-action">Открыть проект<input type="file" accept=".json" id="projectInput"></label>
+      <button class="action" onclick="saveProject()">Сохранить</button>
+      <span class="divider"></span>
+      <button class="icon-action" title="Отмена" onclick="undoLast()">&#8630;</button>
+      <button class="icon-action" title="Повтор" onclick="redoLast()">&#8631;</button>
+      <span class="divider"></span>
+      <button class="action" onclick="exportPDF()">Экспорт PDF</button>
+      <button class="action dark" onclick="exportPNG()">Экспорт PNG</button>
+    </nav>
+  </header>
 
-<h3>Пуруша-сетка</h3>
-<p class="hint">Цветная сетка из Васту Пуруша Мандалы. Ячейки не редактируются.</p>
-<p><label><input type="checkbox" id="lockPurusha"> Зафиксировать Пуруша-сетку</label></p>
-<div class="row"><span>Размер</span><span class="badge"><span id="purushaSizeTxt">520×485</span></span></div>
-<input type="range" min="80" max="1600" value="503" id="purushaSize">
-<div class="row"><span>Ширина</span><span class="badge"><span id="purushaWidthTxt">520</span>px</span></div>
-<input type="range" min="80" max="1800" value="520" id="purushaWidth">
-<div class="row"><span>Высота</span><span class="badge"><span id="purushaHeightTxt">485</span>px</span></div>
-<input type="range" min="80" max="1400" value="485" id="purushaHeight">
-<div class="row"><span>Прозрачность</span><span class="badge"><span id="purushaOpTxt">100</span>%</span></div>
-<input type="range" min="0" max="100" value="100" id="purushaOp">
-<div class="row"><span>Поворот</span><span class="badge"><span id="purushaRotTxt">0</span>°</span></div>
-<div><button onclick="stepPurushaRot(-1)">−1°</button><input type="number" min="0" max="360" value="0" id="purushaRot"><button onclick="stepPurushaRot(1)">+1°</button></div>
+  <main class="layout">
+    <aside class="layers-panel">
+      <section class="panel-head">
+        <h2>Слои</h2>
+        <p>Управление объектами проекта</p>
+      </section>
+      <div class="add-layer-grid">
+        <button onclick="addGrid()">Сетка 3x3</button>
+        <button onclick="addPurushaGrid()">Пуруша</button>
+        <button onclick="addAxes()">Оси</button>
+        <button onclick="addTextLabel()">Надпись</button>
+        <label class="add-overlay">Картинка<input type="file" accept="image/*" id="overlayInput"></label>
+      </div>
+      <div class="layers-list" id="layersList" aria-label="Слои проекта"></div>
+      <section class="correction-library">
+        <div class="library-head">
+          <h3>Коррекции</h3>
+          <span>Добавить на план</span>
+        </div>
+        <input class="library-search" id="correctionSearch" placeholder="Поиск объекта">
+        <div class="correction-categories" id="correctionCategories"></div>
+      </section>
+      <section class="marker-card">
+        <h3>Метки анализа</h3>
+        <div class="marker-buttons">
+          <button class="marker red" onclick="addSticker('red')">+ Проблема</button>
+          <button class="marker green" onclick="addSticker('green')">+ Ресурс</button>
+        </div>
+        <div class="marker-size">
+          <button onclick="resizeSticker(-1)">-</button>
+          <span>Размер метки</span>
+          <button onclick="resizeSticker(1)">+</button>
+        </div>
+      </section>
+    </aside>
 
-<h3>Дополнение</h3>
-<p class="hint">Загрузи доп. картинку сверху. Ее можно двигать, менять размер и прозрачность.</p>
-<p><label><input type="checkbox" id="lockOverlay"> Зафиксировать дополнение</label></p>
-<div class="row"><span>Размер</span><span class="badge"><span id="overlaySizeTxt">420</span>px</span></div>
-<input type="range" min="50" max="1400" value="420" id="overlaySize">
-<div class="row"><span>Прозрачность</span><span class="badge"><span id="overlayOpTxt">100</span>%</span></div>
-<input type="range" min="0" max="100" value="100" id="overlayOp">
-<div class="row"><span>Поворот</span><span class="badge"><span id="overlayRotTxt">0</span>°</span></div>
-<div><button onclick="stepOverlayRot(-1)">−1°</button><input type="number" min="0" max="360" value="0" id="overlayRot"><button onclick="stepOverlayRot(1)">+1°</button></div>
+    <section class="work-area">
+      <div class="canvas-toolbar">
+        <div class="canvas-title">
+          <strong>Рабочий план</strong>
+          <span>Совместите план с сеткой и направлениями</span>
+        </div>
+        <div class="zoom-controls">
+          <button onclick="zoomAll(-0.1)">-</button>
+          <span><span id="zoomTxt">100</span>%</span>
+          <button onclick="zoomAll(0.1)">+</button>
+        </div>
+      </div>
+      <div class="workspace">
+        <div class="canvas" id="canvas">
+          <img id="planImage" alt="">
+          <div class="canvas-welcome">
+            <strong>Начните с плана квартиры</strong>
+            <span>Загрузите изображение и добавьте нужные слои слева</span>
+          </div>
+        </div>
+      </div>
+      <footer class="statusbar">
+        <span>Проект: новый анализ</span>
+        <span class="status-ready">Сетка готова к настройке</span>
+        <span>Сохранение в JSON</span>
+      </footer>
+    </section>
 
-<h3>Надпись</h3><input id="labelText" placeholder="Текст"><div class="row"><span>Шрифт</span><span class="badge"><span id="fontTxt">22</span>px</span></div><input type="range" min="10" max="80" value="22" id="fontSize"><div class="row"><span>Поворот</span><span class="badge"><span id="labelDeg">0</span>°</span></div><input type="range" min="0" max="360" value="0" id="labelRot"><h3>Ручные подписи</h3><div id="directionInputs"></div></aside></div>
-<script src="script.js" defer></script>
-</body></html>
+    <aside class="sidepanel properties-panel">
+      <div class="properties-head">
+        <small>Свойства слоя</small>
+        <h2 id="propertyTitle">Сетка направлений</h2>
+        <button class="delete-layer" onclick="delSel()">Удалить</button>
+      </div>
+
+      <section class="property-group active" data-properties="grid">
+        <p class="hint">Передвигайте сетку на плане, вращайте за оранжевую точку и изменяйте размер за маркеры.</p>
+        <label class="switch-line"><input type="checkbox" id="lockGrid"> Зафиксировать слой</label>
+        <div class="value-row"><label>Поворот</label><span class="value"><span id="gridDeg">0</span>&deg;</span></div>
+        <div class="step-control"><button onclick="stepGrid(-1)">-1&deg;</button><input type="number" value="0" id="gridRot"><button onclick="stepGrid(1)">+1&deg;</button></div>
+        <div class="value-row"><label>Прозрачность</label><span class="value"><span id="gridOpTxt">62</span>%</span></div>
+        <input type="range" min="0" max="100" value="62" id="gridOp">
+        <div class="value-row"><label>Общий размер</label><span class="value"><span id="gridSizeTxt">480x480</span></span></div>
+        <input type="range" min="150" max="1200" value="480" id="gridSize">
+        <div class="split-sliders">
+          <label>Ширина <span><span id="gridWidthTxt">480</span> px</span><input type="range" min="150" max="1400" value="480" id="gridWidth"></label>
+          <label>Высота <span><span id="gridHeightTxt">480</span> px</span><input type="range" min="150" max="1100" value="480" id="gridHeight"></label>
+        </div>
+        <h3>Авто-направления</h3>
+        <select id="northCell">
+          <option value="0">1 верх-лево</option>
+          <option value="1" selected>2 верх-центр</option>
+          <option value="2">3 верх-право</option>
+          <option value="3">4 центр-лево</option>
+          <option value="5">6 центр-право</option>
+          <option value="6">7 низ-лево</option>
+          <option value="7">8 низ-центр</option>
+          <option value="8">9 низ-право</option>
+        </select>
+        <button class="full-action" onclick="autoDirections()">Проставить направления</button>
+        <h3>Ручные подписи</h3>
+        <div id="directionInputs" class="direction-inputs"></div>
+      </section>
+
+      <section class="property-group" data-properties="purusha">
+        <div class="purusha-preview"><img src="purusha-grid.jpg" alt="Пуруша-мандала"></div>
+        <label class="switch-line"><input type="checkbox" id="lockPurusha"> Зафиксировать слой</label>
+        <div class="value-row"><label>Прозрачность</label><span class="value"><span id="purushaOpTxt">100</span>%</span></div>
+        <input type="range" min="0" max="100" value="100" id="purushaOp">
+        <div class="value-row"><label>Поворот</label><span class="value"><span id="purushaRotTxt">0</span>&deg;</span></div>
+        <div class="step-control"><button onclick="stepPurushaRot(-1)">-1&deg;</button><input type="number" min="0" max="360" value="0" id="purushaRot"><button onclick="stepPurushaRot(1)">+1&deg;</button></div>
+        <div class="value-row"><label>Размер</label><span class="value"><span id="purushaSizeTxt">520x485</span></span></div>
+        <input type="range" min="80" max="1600" value="503" id="purushaSize">
+        <div class="split-sliders">
+          <label>Ширина <span><span id="purushaWidthTxt">520</span> px</span><input type="range" min="80" max="1800" value="520" id="purushaWidth"></label>
+          <label>Высота <span><span id="purushaHeightTxt">485</span> px</span><input type="range" min="80" max="1400" value="485" id="purushaHeight"></label>
+        </div>
+      </section>
+
+      <section class="property-group" data-properties="axis">
+        <label class="switch-line"><input type="checkbox" id="lockAxes"> Зафиксировать слой</label>
+        <div class="value-row"><label>Длина лучей</label><span class="value"><span id="axisLenTxt">1800</span> px</span></div>
+        <input type="range" min="200" max="2400" value="1800" id="axisLen">
+        <div class="value-row"><label>Прозрачность</label><span class="value"><span id="axisOpTxt">100</span>%</span></div>
+        <input type="range" min="0" max="100" value="100" id="axisOp">
+      </section>
+
+      <section class="property-group" data-properties="overlay">
+        <p class="hint">Дополнительное изображение можно использовать для мебели, схем или пометок.</p>
+        <label class="switch-line"><input type="checkbox" id="lockOverlay"> Зафиксировать слой</label>
+        <div class="value-row"><label>Размер</label><span class="value"><span id="overlaySizeTxt">420</span> px</span></div>
+        <input type="range" min="50" max="1400" value="420" id="overlaySize">
+        <div class="value-row"><label>Прозрачность</label><span class="value"><span id="overlayOpTxt">100</span>%</span></div>
+        <input type="range" min="0" max="100" value="100" id="overlayOp">
+        <div class="value-row"><label>Поворот</label><span class="value"><span id="overlayRotTxt">0</span>&deg;</span></div>
+        <div class="step-control"><button onclick="stepOverlayRot(-1)">-1&deg;</button><input type="number" min="0" max="360" value="0" id="overlayRot"><button onclick="stepOverlayRot(1)">+1&deg;</button></div>
+      </section>
+
+      <section class="property-group" data-properties="label">
+        <label>Текст надписи<input id="labelText" placeholder="Текст"></label>
+        <div class="value-row"><label>Шрифт</label><span class="value"><span id="fontTxt">22</span> px</span></div>
+        <input type="range" min="10" max="80" value="22" id="fontSize">
+        <div class="value-row"><label>Поворот</label><span class="value"><span id="labelDeg">0</span>&deg;</span></div>
+        <input type="range" min="0" max="360" value="0" id="labelRot">
+      </section>
+
+      <section class="property-group" data-properties="sticker">
+        <p class="hint">Метка показывает проблемную или благоприятную зону на плане.</p>
+        <div class="marker-size wide">
+          <button onclick="resizeSticker(-1)">-</button>
+          <span>Размер метки</span>
+          <button onclick="resizeSticker(1)">+</button>
+        </div>
+      </section>
+
+      <section class="property-group" data-properties="correction">
+        <div class="correction-card">
+          <img id="correctionPreview" alt="">
+          <div>
+            <strong id="correctionName">Коррекция</strong>
+            <span id="correctionCategoryName">Категория</span>
+          </div>
+        </div>
+        <label class="switch-line"><input type="checkbox" id="lockCorrection"> Зафиксировать объект</label>
+        <div class="correction-variants" id="spiralControls">
+          <h3>Параметры спирали</h3>
+          <label>Материал<select id="correctionMaterial"></select></label>
+          <label>Форма<select id="correctionShape"></select></label>
+          <label>Количество<select id="correctionTurns"></select></label>
+        </div>
+        <div class="measurement-fields" id="correctionMeasurement">
+          <label>Вес <input type="number" min="0" step="0.1" id="correctionWeight"></label>
+          <label>Единица
+            <select id="correctionWeightUnit">
+              <option value="г">г</option>
+              <option value="кг">кг</option>
+            </select>
+          </label>
+        </div>
+        <div class="value-row"><label>Прозрачность объекта</label><span class="value"><span id="correctionOpTxt">100</span>%</span></div>
+        <input type="range" min="0" max="100" value="100" id="correctionOp">
+        <div class="value-row"><label>Поворот</label><span class="value"><span id="correctionRotTxt">0</span>&deg;</span></div>
+        <div class="step-control"><button onclick="stepCorrectionRot(-1)">-1&deg;</button><input type="number" min="0" max="360" value="0" id="correctionRot"><button onclick="stepCorrectionRot(1)">+1&deg;</button></div>
+        <label class="switch-line"><input type="checkbox" id="correctionKeepRatio" checked> Сохранять пропорции</label>
+        <div class="dimension-inputs">
+          <label>Ширина <input type="number" min="8" max="2000" value="80" id="correctionWidth"> px</label>
+          <label>Высота <input type="number" min="8" max="2000" value="80" id="correctionHeight"> px</label>
+        </div>
+        <div class="value-row"><label>Быстрый размер</label><span class="value"><span id="correctionSizeTxt">80</span> px</span></div>
+        <input type="range" min="8" max="600" value="80" id="correctionSize">
+        <button class="full-action duplicate-action" onclick="duplicateCorrection()">Дублировать объект</button>
+      </section>
+
+      <section class="property-group" data-properties="plan">
+        <p class="hint">Поверните исходный план и настройте его видимость перед совмещением с сеткой.</p>
+        <div class="value-row"><label>Поворот плана</label><span class="value"><span id="planDegTxt">0</span>&deg;</span></div>
+        <div class="step-control"><button onclick="stepPlan(-1)">-1&deg;</button><input type="number" value="0" id="planRot"><button onclick="stepPlan(1)">+1&deg;</button></div>
+        <div class="value-row"><label>Прозрачность</label><span class="value"><span id="planOpacityTxt">85</span>%</span></div>
+        <input type="range" min="10" max="100" value="85" id="planOpacity">
+      </section>
+    </aside>
+  </main>
+  <script src="corrections.js" defer></script>
+  <script src="script.js" defer></script>
+</body>
+</html>
