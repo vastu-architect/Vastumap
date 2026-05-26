@@ -497,6 +497,7 @@ header{
 backdrop-filter:blur(20px);
 -webkit-backdrop-filter:blur(20px);
 background:rgba(28,28,30,.82)!important;
+color:#fff!important;
 padding:8px 14px!important;
 height:52px!important;
 display:flex;
@@ -508,6 +509,7 @@ header h1{
 font-size:17px!important;
 font-weight:700!important;
 letter-spacing:-0.02em;
+color:#fff!important;
 }
 
 .toolbar{
@@ -597,6 +599,16 @@ max-width:82px!important;
 height:calc(100vh - 104px)!important;
 }
 
+.two-rows-btn{
+display:none!important;
+}
+
+@media (max-width:1180px){
+.two-rows-btn{
+display:block!important;
+}
+}
+
 @media (max-width:900px){
 
 .toolbar{
@@ -632,6 +644,38 @@ height:calc(100vh - 88px)!important;
 font-size:12px!important;
 }
 
+}
+
+/* Clean document output: editor chrome and view zoom never enter PDF. */
+body.exporting .selected,
+body.exporting .locked{
+  outline:none !important;
+}
+
+@media print{
+  body{
+    overflow:visible !important;
+  }
+
+  .two-rows-btn,
+  .handle,
+  .rotate-handle,
+  .purusha-handle,
+  .overlay-handle{
+    display:none !important;
+  }
+
+  .selected,
+  .locked{
+    outline:none !important;
+  }
+
+  .canvas{
+    transform:none !important;
+    box-shadow:none !important;
+    border:0 !important;
+    border-radius:0 !important;
+  }
 }
 
 
@@ -679,4 +723,3 @@ grid-template-columns:repeat(4,minmax(74px,1fr))!important;
 }
 
 }
-
