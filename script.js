@@ -48,10 +48,49 @@ imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r
 overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>addOverlayImage({src:x.target.result});r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.onfocus=()=>pushHistory();planOpacity.oninput=e=>{plan.style.opacity=e.target.value/100;planOpacityTxt.innerText=e.target.value};
 function setPlanRot(v){let n=nd(v),delta=n-lastPlanRot;planRot.value=Math.round(n);planDegTxt.innerText=Math.round(n);plan.style.transform=`translate(-50%,-50%) rotate(${n}deg)`;document.querySelectorAll(".vastu-grid").forEach(g=>{if(g.dataset.locked==="true"){let d=nd((+g.dataset.rot||0)+delta);g.dataset.rot=d;g.style.transform=`rotate(${d}deg)`;if(g===sel)updGridPanel()}});lastPlanRot=n}function stepPlan(x){pushHistory();setPlanRot((+planRot.value||0)+x)}
-function addGrid(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();gridCounter++;let g=document.createElement("div");g.className="vastu-grid";g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;g.classList.toggle("locked", g.dataset.locked==="true");(d.directions??names).forEach((t,i)=>{let c=document.createElement("div");c.className="cell p"+(i+1);c.style.opacity=g.dataset.op/100;let inp=document.createElement("input");inp.value=t;inp.onfocus=()=>pushHistory();inp.oninput=buildInputs;c.appendChild(inp);g.appendChild(c)});["nw","n","ne","e","se","s","sw","w"].forEach(p=>{let h=document.createElement("div");h.className="handle "+p;h.onmousedown=startResize;h.ontouchstart=startResize;g.appendChild(h)});let rh=document.createElement("div");rh.className="rotate-handle";rh.onmousedown=startRot;rh.ontouchstart=startRot;g.appendChild(rh);g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};canvas.appendChild(g);applyLayerVisibility(g,"grid");select(g,"grid")}
+function updateGridTypography(grid){
+ if(!grid)return 15;
+ const width=parseFloat(grid.style.width)||grid.offsetWidth||480;
+ const padding=width<230?2:width<360?4:6;
+ const sample=grid.querySelector(".cell input");
+ const fallbackWidth=(width/3-padding*2-3)*.9;
+ const available=Math.max(10,(sample&&sample.clientWidth?sample.clientWidth:fallbackWidth)-8);
+ const probe=document.createElement("canvas").getContext("2d");
+ const family=sample?getComputedStyle(sample).fontFamily:"Arial, sans-serif";
+ let size=15;
+ const text=[...grid.querySelectorAll(".cell input")].map(input=>input.value||"");
+ while(size>3.5){
+  probe.font=`600 ${size}px ${family}`;
+  if(text.every(value=>probe.measureText(value).width<=available))break;
+  size-=.5;
+ }
+ grid.style.setProperty("--grid-font-size",size+"px");
+ grid.style.setProperty("--grid-cell-padding",padding+"px");
+ return size;
+}
+function addGrid(d={}){
+ if(!isRestoring&&Object.keys(d).length===0)pushHistory();
+ gridCounter++;
+ const g=document.createElement("div");
+ g.className="vastu-grid";
+ g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
+ g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;
+ g.classList.toggle("locked",g.dataset.locked==="true");
+ (d.directions??names).forEach((t,i)=>{
+  const c=document.createElement("div"),inp=document.createElement("input");
+  c.className="cell p"+(i+1);c.style.opacity=g.dataset.op/100;
+  inp.value=t;inp.onfocus=()=>pushHistory();inp.oninput=()=>{updateGridTypography(g);buildInputs()};
+  c.appendChild(inp);g.appendChild(c);
+ });
+ ["nw","n","ne","e","se","s","sw","w"].forEach(p=>{const h=document.createElement("div");h.className="handle "+p;h.onmousedown=startResize;h.ontouchstart=startResize;g.appendChild(h)});
+ const rh=document.createElement("div");rh.className="rotate-handle";rh.onmousedown=startRot;rh.ontouchstart=startRot;g.appendChild(rh);
+ g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};
+ canvas.appendChild(g);updateGridTypography(g);applyLayerVisibility(g,"grid");select(g,"grid");
+}
 function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");showProperties(t);if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();if(t==="correction")updCorrectionPanel();refreshLayers()}
 function updGridPanel(){
  if(!sel||selType!="grid")return;
+ updateGridTypography(sel);
  const locked=sel.dataset.locked==="true";
  sel.classList.toggle("locked", locked);
  gridRot.value=Math.round(+sel.dataset.rot||0);
@@ -60,6 +99,8 @@ function updGridPanel(){
  gridOpTxt.innerText=gridOp.value;
  gridSize.value=sel.offsetWidth;
  gridSizeTxt.innerText=sel.offsetWidth+"x"+sel.offsetHeight;
+ if(typeof gridWidth!=="undefined"){gridWidth.value=sel.offsetWidth;gridWidthTxt.innerText=sel.offsetWidth;}
+ if(typeof gridHeight!=="undefined"){gridHeight.value=sel.offsetHeight;gridHeightTxt.innerText=sel.offsetHeight;}
  lockGrid.checked=locked;
  buildInputs();
 }
@@ -70,6 +111,7 @@ gridSize.oninput=e=>{
  if(sel.dataset.locked==="true"){updGridPanel();return;}
  sel.style.width=e.target.value+"px";
  sel.style.height=e.target.value+"px";
+ updateGridTypography(sel);
  gridSizeTxt.innerText=e.target.value+"×"+e.target.value;
  if(typeof gridWidth!=="undefined"){gridWidth.value=e.target.value;gridWidthTxt.innerText=e.target.value;}
  if(typeof gridHeight!=="undefined"){gridHeight.value=e.target.value;gridHeightTxt.innerText=e.target.value;}
@@ -80,6 +122,7 @@ if(typeof gridWidth!=="undefined"){
   if(selType!="grid")return;
   if(sel.dataset.locked==="true"){updGridPanel();return;}
   sel.style.width=e.target.value+"px";
+  updateGridTypography(sel);
   gridWidthTxt.innerText=e.target.value;
   gridSizeTxt.innerText=sel.offsetWidth+"×"+sel.offsetHeight;
  };
@@ -90,6 +133,7 @@ if(typeof gridHeight!=="undefined"){
   if(selType!="grid")return;
   if(sel.dataset.locked==="true"){updGridPanel();return;}
   sel.style.height=e.target.value+"px";
+  updateGridTypography(sel);
   gridHeightTxt.innerText=e.target.value;
   gridSizeTxt.innerText=sel.offsetWidth+"×"+sel.offsetHeight;
  };
@@ -114,7 +158,7 @@ function autoDirections(){
  inputs.forEach((input,index)=>input.value=arr[index]);
  buildInputs();
 }
-function buildInputs(){directionInputs.innerHTML="";if(selType!="grid")return;sel.querySelectorAll(".cell input").forEach((inp,i)=>{let d=document.createElement("div");d.className="control";d.style.marginBottom="7px";d.innerHTML='<label>Ячейка '+(i+1)+'</label>';let ed=document.createElement("input");ed.value=inp.value;ed.onfocus=()=>pushHistory();ed.oninput=()=>inp.value=ed.value;d.appendChild(ed);directionInputs.appendChild(d)})}
+function buildInputs(){directionInputs.innerHTML="";if(selType!="grid")return;updateGridTypography(sel);sel.querySelectorAll(".cell input").forEach((inp,i)=>{let d=document.createElement("div");d.className="control";d.style.marginBottom="7px";d.innerHTML='<label>Ячейка '+(i+1)+'</label>';let ed=document.createElement("input");ed.value=inp.value;ed.onfocus=()=>pushHistory();ed.oninput=()=>{inp.value=ed.value;updateGridTypography(sel)};d.appendChild(ed);directionInputs.appendChild(d)})}
 function point(e){const p=e.touches?.[0]??e;const r=canvas.getBoundingClientRect();return{x:(p.clientX-r.left)/zoomLevel,y:(p.clientY-r.top)/zoomLevel}}function bind(){document.addEventListener("mousemove",move);document.addEventListener("mouseup",stop);document.addEventListener("touchmove",move,{passive:false});document.addEventListener("touchend",stop)}
 function startDrag(e){
  if(e.target.classList.contains("handle")||e.target.classList.contains("rotate-handle")||e.target.tagName==="INPUT")return;
@@ -697,7 +741,26 @@ correctionArrangement.onchange=e=>{if(selType!=="correction")return;pushHistory(
 function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();labelCounter++;let l=document.createElement("div");l.className="text-label";l.dataset.rot=d.rotation??0;l.dataset.fs=d.fontSize??22;l.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";l.innerText=d.text??"Надпись";l.style.left=(d.left??120+labelCounter*20)+"px";l.style.top=(d.top??120+labelCounter*20)+"px";l.style.fontSize=l.dataset.fs+"px";l.style.transform=`rotate(${l.dataset.rot}deg)`;prepGeneric(l,"label");canvas.appendChild(l);applyLayerVisibility(l,"label");select(l,"label");updLabelPanel()}
 function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=sel.dataset.rot;labelDeg.innerText=sel.dataset.rot}
 labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){sel.dataset.rot=e.target.value;sel.style.transform=`rotate(${e.target.value}deg)`;labelDeg.innerText=e.target.value}}
-function addSticker(color,d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();stickerCounter++;let s=document.createElement("div");s.className="sticker";s.dataset.color=d.color??color;s.dataset.size=d.size??38;s.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";s.innerText="★";s.style.color=s.dataset.color==="green"?"#18a558":"#d62828";s.style.left=(d.left??170+stickerCounter*24)+"px";s.style.top=(d.top??170+stickerCounter*24)+"px";s.style.fontSize=s.dataset.size+"px";prepGeneric(s,"sticker");canvas.appendChild(s);applyLayerVisibility(s,"sticker");select(s,"sticker")}function resizeSticker(n){if(selType!="sticker")return;pushHistory();let sz=Math.max(12,(+sel.dataset.size||38)+n*4);sel.dataset.size=sz;sel.style.fontSize=sz+"px"}
+function workingAreaCenter(){
+ const selectedGrid=selType==="grid"&&sel&&isLayerVisible(sel)?sel:null;
+ const grid=selectedGrid||document.querySelector(".vastu-grid:not([hidden])");
+ if(grid)return{x:parseFloat(grid.style.left)+grid.offsetWidth/2,y:parseFloat(grid.style.top)+grid.offsetHeight/2};
+ return{x:canvas.clientWidth/2,y:canvas.clientHeight/2};
+}
+function addSticker(color,d={}){
+ if(!isRestoring&&Object.keys(d).length===0)pushHistory();
+ stickerCounter++;
+ const s=document.createElement("div");
+ const size=d.size??38;
+ const anchor=workingAreaCenter();
+ const offsets=[{x:0,y:0},{x:34,y:0},{x:0,y:34},{x:-34,y:0},{x:0,y:-34},{x:34,y:34},{x:-34,y:34},{x:-34,y:-34},{x:34,y:-34}];
+ const offset=offsets[(stickerCounter-1)%offsets.length];
+ s.className="sticker";s.dataset.color=d.color??color;s.dataset.size=size;s.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
+ s.innerText="★";s.style.color=s.dataset.color==="green"?"#18a558":"#d62828";
+ s.style.left=(d.left??Math.round(anchor.x-size/2+offset.x))+"px";s.style.top=(d.top??Math.round(anchor.y-size/2+offset.y))+"px";s.style.fontSize=size+"px";
+ prepGeneric(s,"sticker");canvas.appendChild(s);applyLayerVisibility(s,"sticker");select(s,"sticker");
+}
+function resizeSticker(n){if(selType!="sticker")return;pushHistory();let sz=Math.max(12,(+sel.dataset.size||38)+n*4);sel.dataset.size=sz;sel.style.fontSize=sz+"px"}
 function addAxes(){
  if(document.querySelector(".axis-group")) return;
  if(!isRestoring) pushHistory();
@@ -775,7 +838,7 @@ lockAxes.onchange=e=>{const g=document.querySelector(".axis-group"); if(g){pushH
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
 function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove()}clearSel()}canvas.onclick=clearSel;
-function collect(){let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));let axes=[]; const ag=document.querySelector(".axis-group"); if(ag){axes=[{left:parseFloat(ag.style.left),top:parseFloat(ag.style.top),locked:ag.dataset.locked||"false",visible:isLayerVisible(ag),len:num(ag.dataset.len,1800),opacity:num(ag.dataset.opacity,100)}]};
+function collect(){let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));let axes=[]; const ag=document.querySelector(".axis-group"); if(ag){axes=[{left:parseFloat(ag.style.left),top:parseFloat(ag.style.top),locked:ag.dataset.locked||"false",visible:isLayerVisible(ag),len:num(ag.dataset.len,1800),opacity:num(ag.dataset.opacity,100)}]};
 let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
 let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
 let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
@@ -794,12 +857,60 @@ async function asDataURL(src){
  const blob=await response.blob();
  return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob)});
 }
-async function html2canvasLike(){let svg=await buildSVG(),img=new Image(),url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"}));img.onload=()=>{let c=document.createElement("canvas");c.width=1600;c.height=1200;let ctx=c.getContext("2d");ctx.fillStyle="white";ctx.fillRect(0,0,1600,1200);ctx.drawImage(img,0,0);c.toBlob(b=>download(b,"vastu-map.png"));URL.revokeObjectURL(url)};img.onerror=()=>{URL.revokeObjectURL(url);alert("Не удалось подготовить изображение для PNG.")};img.src=url}
+async function displayedPlanFrame(){
+ if(planData&&!plan.complete)await new Promise(resolve=>{plan.addEventListener("load",resolve,{once:true});plan.addEventListener("error",resolve,{once:true})});
+ let width=plan.offsetWidth,height=plan.offsetHeight;
+ if(!width||!height){
+  const naturalWidth=plan.naturalWidth||1050,naturalHeight=plan.naturalHeight||780;
+  const scale=Math.min(1,1050/naturalWidth,780/naturalHeight);
+  width=naturalWidth*scale;height=naturalHeight*scale;
+ }
+ return{left:800-width/2,top:600-height/2,width,height,cx:800,cy:600};
+}
+function includeExportRect(bounds,x,y,width,height,rotation=0){
+ const angle=rotation*Math.PI/180,cx=x+width/2,cy=y+height/2;
+ const points=[[x,y],[x+width,y],[x+width,y+height],[x,y+height]].map(([px,py])=>({
+  x:cx+(px-cx)*Math.cos(angle)-(py-cy)*Math.sin(angle),
+  y:cy+(px-cx)*Math.sin(angle)+(py-cy)*Math.cos(angle)
+ }));
+ points.forEach(point=>{
+  bounds.left=Math.min(bounds.left,point.x);bounds.top=Math.min(bounds.top,point.y);
+  bounds.right=Math.max(bounds.right,point.x);bounds.bottom=Math.max(bounds.bottom,point.y);
+ });
+}
+function exportArea(p,planFrame){
+ const bounds={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
+ if(planFrame&&p.planVisible!==false)includeExportRect(bounds,planFrame.left,planFrame.top,planFrame.width,planFrame.height,p.planRotation);
+ (p.grids||[]).forEach(g=>{if(g.visible!==false)includeExportRect(bounds,g.left,g.top,g.width,g.height,g.rotation)});
+ (p.purushas||[]).forEach(o=>{if(o.visible!==false)includeExportRect(bounds,o.left,o.top,o.width,o.height,o.rotation)});
+ (p.overlays||[]).forEach(o=>{if(o.visible!==false)includeExportRect(bounds,o.left,o.top,o.width,o.height,o.rotation)});
+ (p.corrections||[]).forEach(o=>{
+  const group=p.correctionGroups[o.category]||{visible:true};
+  if(o.visible!==false&&group.visible)includeExportRect(bounds,o.left,o.top,o.width,o.height+(o.showCaption===false?0:20),o.rotation);
+ });
+ (p.labels||[]).forEach(l=>{if(l.visible!==false)includeExportRect(bounds,l.left,l.top,Math.max(20,l.text.length*l.fontSize*.62),l.fontSize*1.35,l.rotation)});
+ (p.stickers||[]).forEach(s=>{if(s.visible!==false)includeExportRect(bounds,s.left,s.top,s.size,s.size)});
+ if(!Number.isFinite(bounds.left))return{left:0,top:0,width:1600,height:1200};
+ const padding=42;
+ const left=Math.max(0,Math.floor(bounds.left-padding)),top=Math.max(0,Math.floor(bounds.top-padding));
+ const right=Math.min(1600,Math.ceil(bounds.right+padding)),bottom=Math.min(1200,Math.ceil(bounds.bottom+padding));
+ return{left,top,width:Math.max(1,right-left),height:Math.max(1,bottom-top)};
+}
+async function html2canvasLike(){
+ const result=await buildSVG(),img=new Image(),url=URL.createObjectURL(new Blob([result.svg],{type:"image/svg+xml"}));
+ img.onload=()=>{let c=document.createElement("canvas");c.width=result.width;c.height=result.height;let ctx=c.getContext("2d");ctx.fillStyle="white";ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0);c.toBlob(b=>download(b,"vastu-map.png"));URL.revokeObjectURL(url)};
+ img.onerror=()=>{URL.revokeObjectURL(url);alert("Не удалось подготовить изображение для PNG.")};
+ img.src=url;
+}
 function esc(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&apos;")}
 async function buildSVG(){
  const p=collect();
- let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="white"/>`;
- if(p.planImageData&&p.planVisible!==false) svg+=`<g transform="translate(800 600) rotate(${p.planRotation})"><image href="${p.planImageData}" x="-525" y="-390" width="1050" height="780" opacity="${p.planOpacity/100}" preserveAspectRatio="xMidYMid meet"/></g>`;
+ const frame=p.planImageData&&p.planVisible!==false?await displayedPlanFrame():null;
+ const area=exportArea(p,frame);
+ let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${area.width}" height="${area.height}" viewBox="${area.left} ${area.top} ${area.width} ${area.height}"><rect x="${area.left}" y="${area.top}" width="${area.width}" height="${area.height}" fill="white"/>`;
+ if(frame){
+  svg+=`<image href="${p.planImageData}" x="${frame.left}" y="${frame.top}" width="${frame.width}" height="${frame.height}" opacity="${p.planOpacity/100}" preserveAspectRatio="none" transform="rotate(${p.planRotation} ${frame.cx} ${frame.cy})"/>`;
+ }
  for(const o of p.purushas||[]){
   if(o.visible===false) continue;
   const src=await asDataURL(o.src||PURUSHA_GRID_SRC);
@@ -810,12 +921,12 @@ async function buildSVG(){
  }
  p.grids.forEach(g=>{
   if(g.visible===false)return;
-  const cx=g.left+g.width/2,cy=g.top+g.height/2,cw=g.width/3,ch=g.height/3;
+  const cx=g.left+g.width/2,cy=g.top+g.height/2,cw=g.width/3,ch=g.height/3,fontSize=num(g.fontSize,15);
   const cols=["#daeef1","#f2f5ee","#f4efef","#eceff8","#fff","#f4f4f0","#f1edf0","#faf1f0","#f7eff8"];
   svg+=`<g transform="rotate(${g.rotation} ${cx} ${cy})">`;
   for(let r=0;r<3;r++)for(let c=0;c<3;c++){
    const i=r*3+c;
-   svg+=`<rect x="${g.left+c*cw}" y="${g.top+r*ch}" width="${cw}" height="${ch}" fill="${cols[i]}" opacity="${g.opacity/100}" stroke="black"/><text x="${g.left+c*cw+cw/2}" y="${g.top+r*ch+ch/2}" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="middle">${esc(g.directions[i]||"")}</text>`;
+   svg+=`<rect x="${g.left+c*cw}" y="${g.top+r*ch}" width="${cw}" height="${ch}" fill="${cols[i]}" opacity="${g.opacity/100}" stroke="black"/><text x="${g.left+c*cw+cw/2}" y="${g.top+r*ch+ch/2}" font-size="${fontSize}" font-weight="600" text-anchor="middle" dominant-baseline="middle">${esc(g.directions[i]||"")}</text>`;
   }
   svg+=`</g>`;
  });
@@ -831,9 +942,9 @@ async function buildSVG(){
   svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${opacity}" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;
   if(o.showCaption!==false)svg+=`<text x="${o.left+o.width/2}" y="${o.top+o.height+14}" text-anchor="middle" font-size="10" fill="#49463f" opacity="${opacity}">${esc(correctionCaptionValue(o,def))}</text>`;
  });
- p.labels.forEach(l=>{if(l.visible!==false)svg+=`<text x="${l.left}" y="${l.top}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top})">${esc(l.text)}</text>`;});
- p.stickers.forEach(s=>{if(s.visible!==false)svg+=`<text x="${s.left}" y="${s.top}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`;});
- return svg+"</svg>";
+ p.labels.forEach(l=>{if(l.visible!==false)svg+=`<text x="${l.left}" y="${l.top+l.fontSize}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top+l.fontSize})">${esc(l.text)}</text>`;});
+ p.stickers.forEach(s=>{if(s.visible!==false)svg+=`<text x="${s.left}" y="${s.top+s.size*.9}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`;});
+ return{svg:svg+"</svg>",width:area.width,height:area.height};
 }
 
 const propertyNames={grid:"Сетка направлений",purusha:"Пуруша-мандала",axis:"Оси направлений",overlay:"Дополнительная картинка",label:"Надпись",sticker:"Метка анализа",correction:"Коррекция",plan:"План квартиры"};
@@ -1084,6 +1195,7 @@ function move(e){
    drag.el.style.height=newH+"px";
    drag.el.style.left=(centerWorld.x-newW/2)+"px";
    drag.el.style.top=(centerWorld.y-newH/2)+"px";
+   updateGridTypography(drag.el);
    if(drag.el===sel)updGridPanel();
  }
 

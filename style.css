@@ -16,6 +16,7 @@
 }
 
 *{box-sizing:border-box}
+[hidden]{display:none !important}
 
 body{
   margin:0;
@@ -771,8 +772,8 @@ input[type=number],input:not([type]),#labelText,select{
   align-items:center;
   justify-content:center;
   text-align:center;
-  padding:6px;
-  font-size:16px;
+  padding:var(--grid-cell-padding,6px);
+  font-size:var(--grid-font-size,15px);
   font-weight:600;
   overflow:hidden;
 }
@@ -783,7 +784,7 @@ input[type=number],input:not([type]),#labelText,select{
   background:transparent;
   text-align:center;
   font-weight:600;
-  font-size:15px;
+  font-size:var(--grid-font-size,15px);
   color:#343532;
 }
 
