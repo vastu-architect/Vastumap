@@ -17,6 +17,10 @@ window.CORRECTION_LIBRARY = {
     { id: "triangle", name: "Треугольная" }
   ],
   spiralQuantities: [1, 5, 7, 9],
+  spiralArrangements: [
+    { id: "compact", name: "Компактно" },
+    { id: "line", name: "В одну линию" }
+  ],
   categories: [
     {
       id: "stones",
@@ -40,7 +44,7 @@ window.CORRECTION_LIBRARY = {
       name: "Спирали",
       icon: "spiral",
       items: [
-        { id: "spiral", name: "Спираль", visual: "spiral", material: "copper", shape: "circle", quantity: 1, size: 100 }
+        { id: "spiral", name: "Спираль", visual: "spiral", material: "copper", shape: "circle", quantity: 1, arrangement: "compact", size: 100 }
       ]
     },
     {
@@ -97,6 +101,22 @@ window.CORRECTION_LIBRARY = {
         { id: "film-bronze", name: "Бронзовая пленка", visual: "film", color: "#a6764c", measurable: false, aspect: 1.6 },
         { id: "film-yellow", name: "Желтая пленка", visual: "film", color: "#e0ba52", measurable: false, aspect: 1.6 },
         { id: "curtains-dense", name: "Плотные шторы", visual: "curtain", color: "#6e7484", measurable: false, aspect: 1.4 }
+      ]
+    },
+    {
+      id: "interior",
+      name: "Обстановка",
+      icon: "interior",
+      items: [
+        { id: "fire", name: "Огонь", visual: "fire", color: "#dc6235", measurable: false, size: 80 },
+        { id: "kitchen", name: "Кухня", visual: "kitchen", color: "#a97952", measurable: false, size: 110, aspect: 1.3 },
+        { id: "bed", name: "Кровать", visual: "bed", color: "#658194", measurable: false, size: 130, aspect: 1.65 },
+        { id: "toilet", name: "Унитаз", visual: "toilet", color: "#90b2bf", measurable: false, size: 80 },
+        { id: "sink", name: "Раковина", visual: "sink", color: "#7ca6b5", measurable: false, size: 90 },
+        { id: "wardrobe", name: "Гардероб", visual: "wardrobe", color: "#9b7455", measurable: false, size: 95, aspect: 0.8 },
+        { id: "sofa", name: "Диван", visual: "sofa", color: "#7c8370", measurable: false, size: 130, aspect: 1.8 },
+        { id: "table", name: "Стол", visual: "table", color: "#a87852", measurable: false, size: 100 },
+        { id: "entrance-door", name: "Входная дверь", visual: "door", color: "#866345", measurable: false, size: 105, aspect: 1.3 }
       ]
     },
     {

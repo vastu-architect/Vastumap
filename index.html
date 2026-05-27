@@ -189,11 +189,16 @@
           </div>
         </div>
         <label class="switch-line"><input type="checkbox" id="lockCorrection"> Зафиксировать объект</label>
+        <div class="caption-settings">
+          <label class="switch-line"><input type="checkbox" id="correctionShowCaption" checked> Показывать подпись объекта</label>
+          <label>Текст подписи<input type="text" id="correctionCaptionText" placeholder="Название объекта"></label>
+        </div>
         <div class="correction-variants" id="spiralControls">
           <h3>Параметры спирали</h3>
           <label>Материал<select id="correctionMaterial"></select></label>
           <label>Форма<select id="correctionShape"></select></label>
           <label>Количество спиралей<select id="correctionQuantity"></select></label>
+          <label class="spiral-arrangement" id="spiralArrangementField">Расположение группы<select id="correctionArrangement"></select></label>
         </div>
         <div class="measurement-fields" id="correctionMeasurement">
           <label class="switch-line measurement-toggle"><input type="checkbox" id="correctionShowWeight" checked> Показывать вес на плане</label>

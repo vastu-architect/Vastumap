@@ -248,8 +248,23 @@ input[type=number],input:not([type]),#labelText,select{
 .layer-copy{min-width:0;flex:1}
 .layer-copy strong{display:block;font-size:12px;font-weight:560;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .layer-copy small{font-size:10px;color:var(--muted)}
-.layer-lock{color:var(--muted);font-size:12px}
-.layer-hidden{color:#987853;font-size:11px}
+.layer-lock{color:var(--muted);font-size:10px}
+.layer-hidden{color:#987853;font-size:9px;white-space:nowrap}
+.layer-visibility{
+  flex:0 0 23px;
+  height:23px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#67645e;
+  font-size:12px;
+  background:#fff;
+}
+
+.layer-visibility:hover{border-color:#b8ccd7;color:var(--blue)}
+.layer-visibility.off{color:#aea89c;background:#f6f4f0;opacity:.7}
 
 .correction-library{
   display:flex;
@@ -683,6 +698,22 @@ input[type=number],input:not([type]),#labelText,select{
 .correction-card img{width:56px;height:56px;object-fit:contain}
 .correction-card strong{display:block;font-size:14px}
 .correction-card span{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.caption-settings{
+  margin:8px 0 10px;
+  padding:8px 0 4px;
+  border-top:1px solid var(--line);
+}
+
+.caption-settings .switch-line{padding:0 0 8px;color:var(--ink)}
+.caption-settings > label:not(.switch-line),
+.correction-variants > label{
+  font-size:13px;
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+
+.caption-settings input[type="text"]{width:100%}
 .correction-variants h3{margin-top:14px}
 .measurement-values,.dimension-inputs{
   display:grid;
@@ -691,7 +722,7 @@ input[type=number],input:not([type]),#labelText,select{
   margin:10px 0;
 }
 
-.measurement-fields[hidden],.correction-variants[hidden]{display:none !important}
+.measurement-fields[hidden],.correction-variants[hidden],.spiral-arrangement[hidden]{display:none !important}
 .measurement-values[hidden]{display:none !important}
 
 .measurement-fields{margin:11px 0}
@@ -863,6 +894,7 @@ input[type=number],input:not([type]),#labelText,select{
   pointer-events:none;
   box-shadow:0 1px 6px rgba(36,39,40,.09);
 }
+.correction-caption[hidden]{display:none !important}
 
 .correction-handle{
   position:absolute;

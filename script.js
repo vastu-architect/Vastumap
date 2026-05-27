@@ -1,9 +1,21 @@
 let sel=null,selType="",gridCounter=0,labelCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false;
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
+plan.dataset.visible="true";
 const names=["Северо-Запад","Север","Северо-Восток","Запад","Брахмастан","Восток","Юго-Запад","Юг","Юго-Восток"];
 function nd(v){v=parseFloat(v)||0;return((v%360)+360)%360}
 function num(v,fallback){if(v===undefined||v===null||v==="")return fallback;const n=Number(v);return Number.isFinite(n)?n:fallback}
 function clearSel(){document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));sel=null;selType="";showProperties("");refreshLayers()}
+function isLayerVisible(el){return !el.dataset||el.dataset.visible!=="false"}
+function applyLayerVisibility(el,type=""){
+ if(type==="correction"||el.classList?.contains("correction-object")){applyCorrectionGroup(el);return;}
+ el.hidden=!isLayerVisible(el);
+}
+function setLayerVisibility(el,type,visible){
+ pushHistory();
+ el.dataset.visible=visible?"true":"false";
+ applyLayerVisibility(el,type);
+ if(!visible&&sel===el)clearSel();else refreshLayers();
+}
 function pushHistory(){
  if(isRestoring) return;
  try {
@@ -36,7 +48,7 @@ imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r
 overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>addOverlayImage({src:x.target.result});r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.onfocus=()=>pushHistory();planOpacity.oninput=e=>{plan.style.opacity=e.target.value/100;planOpacityTxt.innerText=e.target.value};
 function setPlanRot(v){let n=nd(v),delta=n-lastPlanRot;planRot.value=Math.round(n);planDegTxt.innerText=Math.round(n);plan.style.transform=`translate(-50%,-50%) rotate(${n}deg)`;document.querySelectorAll(".vastu-grid").forEach(g=>{if(g.dataset.locked==="true"){let d=nd((+g.dataset.rot||0)+delta);g.dataset.rot=d;g.style.transform=`rotate(${d}deg)`;if(g===sel)updGridPanel()}});lastPlanRot=n}function stepPlan(x){pushHistory();setPlanRot((+planRot.value||0)+x)}
-function addGrid(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();gridCounter++;let g=document.createElement("div");g.className="vastu-grid";g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;g.classList.toggle("locked", g.dataset.locked==="true");(d.directions??names).forEach((t,i)=>{let c=document.createElement("div");c.className="cell p"+(i+1);c.style.opacity=g.dataset.op/100;let inp=document.createElement("input");inp.value=t;inp.onfocus=()=>pushHistory();inp.oninput=buildInputs;c.appendChild(inp);g.appendChild(c)});["nw","n","ne","e","se","s","sw","w"].forEach(p=>{let h=document.createElement("div");h.className="handle "+p;h.onmousedown=startResize;h.ontouchstart=startResize;g.appendChild(h)});let rh=document.createElement("div");rh.className="rotate-handle";rh.onmousedown=startRot;rh.ontouchstart=startRot;g.appendChild(rh);g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};canvas.appendChild(g);select(g,"grid")}
+function addGrid(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();gridCounter++;let g=document.createElement("div");g.className="vastu-grid";g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;g.classList.toggle("locked", g.dataset.locked==="true");(d.directions??names).forEach((t,i)=>{let c=document.createElement("div");c.className="cell p"+(i+1);c.style.opacity=g.dataset.op/100;let inp=document.createElement("input");inp.value=t;inp.onfocus=()=>pushHistory();inp.oninput=buildInputs;c.appendChild(inp);g.appendChild(c)});["nw","n","ne","e","se","s","sw","w"].forEach(p=>{let h=document.createElement("div");h.className="handle "+p;h.onmousedown=startResize;h.ontouchstart=startResize;g.appendChild(h)});let rh=document.createElement("div");rh.className="rotate-handle";rh.onmousedown=startRot;rh.ontouchstart=startRot;g.appendChild(rh);g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};canvas.appendChild(g);applyLayerVisibility(g,"grid");select(g,"grid")}
 function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");showProperties(t);if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();if(t==="correction")updCorrectionPanel();refreshLayers()}
 function updGridPanel(){
  if(!sel||selType!="grid")return;
@@ -230,6 +242,7 @@ function addPurushaGrid(d={}){
  wrap.dataset.width=d.width??PURUSHA_DEFAULT_WIDTH;
  wrap.dataset.height=d.height??PURUSHA_DEFAULT_HEIGHT;
  wrap.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";
+ wrap.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
  wrap.dataset.rotation=d.rotation??0;
  wrap.style.left=(d.left??360+purushaCounter*20)+"px";
  wrap.style.top=(d.top??260+purushaCounter*20)+"px";
@@ -253,6 +266,7 @@ function addPurushaGrid(d={}){
 
  prepGeneric(wrap,"purusha");
  canvas.appendChild(wrap);
+ applyLayerVisibility(wrap,"purusha");
  select(wrap,"purusha");
 }
 function updPurushaPanel(){
@@ -336,6 +350,7 @@ function addOverlayImage(d={}){
  wrap.dataset.opacity=d.opacity??100;
  wrap.dataset.width=d.width??420;
  wrap.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";
+ wrap.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
  wrap.dataset.rotation=d.rotation??0;
  wrap.style.left=(d.left??300+overlayCounter*20)+"px";
  wrap.style.top=(d.top??250+overlayCounter*20)+"px";
@@ -358,6 +373,7 @@ function addOverlayImage(d={}){
 
  prepGeneric(wrap,"overlay");
  canvas.appendChild(wrap);
+ applyLayerVisibility(wrap,"overlay");
  select(wrap,"overlay");
 }
 function updOverlayPanel(){
@@ -402,6 +418,21 @@ function correctionCategory(id){return CORRECTIONS.categories.find(category=>cat
 function correctionDefinition(categoryId,itemId){const category=correctionCategory(categoryId);return category&&category.items.find(item=>item.id===itemId)}
 function getCorrectionMaterial(id){return CORRECTIONS.materials.find(material=>material.id===id)||CORRECTIONS.materials[0]}
 function correctionShapeName(id){const shape=CORRECTIONS.spiralShapes.find(item=>item.id===id);return shape?shape.name:id}
+function correctionArrangementName(id){const arrangement=CORRECTIONS.spiralArrangements.find(item=>item.id===id);return arrangement?arrangement.name:id}
+function correctionTitle(data,def){return (data.caption||"").trim()||def.name}
+function correctionParameterText(data,def){
+ if(def.visual==="spiral"){
+  let detail=getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.quantity+" шт.";
+  if(data.quantity>1)detail+=", "+correctionArrangementName(data.arrangement).toLowerCase();
+  return detail;
+ }
+ if(isMeasuredCorrection(def)&&data.showWeight)return data.weight+" "+data.unit;
+ return "";
+}
+function correctionCaptionValue(data,def){
+ const detail=correctionParameterText(data,def);
+ return detail?correctionTitle(data,def)+" · "+detail:correctionTitle(data,def);
+}
 function initCorrectionGroups(saved={}){
  CORRECTIONS.categories.forEach(category=>{
   const group=saved[category.id]||{};
@@ -431,7 +462,11 @@ function correctionSpiralPoints(shape){
  }
  return points.join(" ");
 }
-function correctionSpiralLayout(quantity){
+function correctionSpiralLayout(quantity,arrangement="compact"){
+ if(arrangement==="line"&&quantity>1){
+  const gap=2,pad=3,size=(100-pad*2-gap*(quantity-1))/quantity;
+  return Array.from({length:quantity},(_,index)=>({x:pad+index*(size+gap),y:(100-size)/2,s:size/100}));
+ }
  if(quantity===5)return [{x:35,y:35,s:.3},{x:8,y:8,s:.3},{x:62,y:8,s:.3},{x:8,y:62,s:.3},{x:62,y:62,s:.3}];
  if(quantity===7)return [{x:36,y:36,s:.28},{x:36,y:5,s:.28},{x:63,y:20,s:.28},{x:63,y:53,s:.28},{x:36,y:67,s:.28},{x:9,y:53,s:.28},{x:9,y:20,s:.28}];
  if(quantity===9)return [3,35,67].flatMap(y=>[3,35,67].map(x=>({x,y,s:.3})));
@@ -440,7 +475,7 @@ function correctionSpiralLayout(quantity){
 function correctionSpiralArt(data,def,color){
  const points=correctionSpiralPoints(data.shape||def.shape);
  const quantity=num(data.quantity,num(data.turns,def.quantity||1));
- return correctionSpiralLayout(quantity).map(item=>`<g transform="translate(${item.x} ${item.y}) scale(${item.s})"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="50" r="3" fill="${color}"/></g>`).join("");
+ return correctionSpiralLayout(quantity,data.arrangement||def.arrangement||"compact").map(item=>`<g transform="translate(${item.x} ${item.y}) scale(${item.s})"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="50" r="3" fill="${color}"/></g>`).join("");
 }
 function correctionArt(data){
  const def=correctionDefinition(data.category,data.item);
@@ -459,6 +494,15 @@ function correctionArt(data){
  if(def.visual==="pyramid") body=`<defs><linearGradient id="g"><stop stop-color="#fff" stop-opacity=".42"/><stop offset=".2" stop-color="${color}"/><stop offset="1" stop-color="${color}" stop-opacity=".63"/></linearGradient></defs><path d="M50 10L92 82H8Z" fill="url(#g)" stroke="${dark}" stroke-opacity=".35" stroke-width="2"/><path d="M50 10V82M8 82H92" stroke="#fff" stroke-opacity=".4" stroke-width="2"/>`;
  if(def.visual==="film") body=`<rect x="9" y="18" width="82" height="64" rx="5" fill="${color}" opacity=".46" stroke="${color}" stroke-width="3"/><path d="M16 30H84M16 43H84M16 56H84M16 69H84" stroke="#fff" stroke-opacity=".45"/>`;
  if(def.visual==="curtain") body=`<path d="M15 12H85V88H15Z" fill="${color}"/><path d="M23 15C17 36 28 64 22 86M39 15C33 36 44 64 38 86M56 15C50 36 61 64 55 86M73 15C67 36 78 64 72 86" stroke="#fff" stroke-opacity=".32" stroke-width="4"/>`;
+ if(def.visual==="fire") body=`<path d="M52 92C28 92 18 76 25 57C30 44 41 39 39 21C55 29 57 40 59 45C65 36 70 29 69 19C89 39 86 55 84 64C82 81 68 92 52 92Z" fill="${color}" stroke="#ae4329" stroke-width="2"/><path d="M51 83C42 83 38 75 41 68C43 62 49 58 49 51C58 56 64 65 63 72C62 79 57 83 51 83Z" fill="#ffc45a"/>`;
+ if(def.visual==="kitchen") body=`<rect x="10" y="16" width="80" height="68" rx="6" fill="${color}" opacity=".25" stroke="${color}" stroke-width="3"/><rect x="17" y="24" width="35" height="53" rx="3" fill="${color}" opacity=".65"/><circle cx="28" cy="38" r="8" fill="none" stroke="${light}" stroke-width="2"/><circle cx="42" cy="61" r="7" fill="none" stroke="${light}" stroke-width="2"/><rect x="59" y="26" width="23" height="23" rx="5" fill="none" stroke="${color}" stroke-width="3"/><path d="M65 35H77M71 29V41M59 62H82" stroke="${color}" stroke-width="3"/>`;
+ if(def.visual==="bed") body=`<rect x="9" y="17" width="82" height="66" rx="7" fill="${color}" opacity=".36" stroke="${color}" stroke-width="3"/><rect x="13" y="20" width="23" height="60" rx="5" fill="${color}"/><rect x="18" y="28" width="13" height="19" rx="5" fill="${light}" opacity=".75"/><path d="M40 25H84M40 76H84" stroke="${color}" stroke-width="3"/>`;
+ if(def.visual==="toilet") body=`<rect x="33" y="12" width="34" height="23" rx="5" fill="${color}" opacity=".55" stroke="${color}" stroke-width="3"/><ellipse cx="50" cy="60" rx="25" ry="30" fill="${light}" stroke="${color}" stroke-width="4"/><ellipse cx="50" cy="57" rx="15" ry="20" fill="${color}" opacity=".28" stroke="${color}" stroke-width="2"/><circle cx="60" cy="20" r="2.5" fill="${dark}"/>`;
+ if(def.visual==="sink") body=`<rect x="13" y="18" width="74" height="64" rx="14" fill="${color}" opacity=".22" stroke="${color}" stroke-width="3"/><ellipse cx="50" cy="53" rx="26" ry="20" fill="${light}" stroke="${color}" stroke-width="3"/><circle cx="50" cy="54" r="4" fill="${color}"/><path d="M50 32V25C50 17 65 17 65 25V34" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"/>`;
+ if(def.visual==="wardrobe") body=`<rect x="18" y="8" width="64" height="84" rx="3" fill="${color}" opacity=".3" stroke="${color}" stroke-width="4"/><path d="M50 10V90M25 19H44M56 19H75" stroke="${color}" stroke-width="2"/><circle cx="45" cy="51" r="3" fill="${color}"/><circle cx="55" cy="51" r="3" fill="${color}"/>`;
+ if(def.visual==="sofa") body=`<rect x="9" y="22" width="82" height="57" rx="13" fill="${color}" opacity=".38" stroke="${color}" stroke-width="3"/><rect x="18" y="30" width="64" height="40" rx="9" fill="${color}" opacity=".72"/><path d="M18 52H82M50 31V69" stroke="${light}" stroke-opacity=".5" stroke-width="2"/><rect x="9" y="33" width="10" height="35" rx="4" fill="${color}"/><rect x="81" y="33" width="10" height="35" rx="4" fill="${color}"/>`;
+ if(def.visual==="table") body=`<circle cx="50" cy="50" r="27" fill="${color}" opacity=".7" stroke="${color}" stroke-width="3"/><rect x="40" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".4"/><rect x="40" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".4"/><rect x="8" y="40" width="13" height="20" rx="3" fill="${color}" opacity=".4"/><rect x="79" y="40" width="13" height="20" rx="3" fill="${color}" opacity=".4"/>`;
+ if(def.visual==="door") body=`<path d="M12 85H88M16 85V19H55" fill="none" stroke="${dark}" stroke-width="5"/><path d="M16 20H75V84H16Z" fill="${color}" opacity=".42" stroke="${color}" stroke-width="3"/><path d="M16 84A59 59 0 0 0 75 25" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="4 3"/><circle cx="67" cy="55" r="3" fill="${dark}"/>`;
  if(def.visual==="powder") body=`<path d="M16 73C17 46 33 29 51 28C69 27 85 44 86 73Z" fill="${color}"/><ellipse cx="51" cy="73" rx="36" ry="9" fill="#c98725"/><circle cx="39" cy="42" r="3" fill="#f3ce63"/><circle cx="59" cy="47" r="2" fill="#f3ce63"/>`;
  if(def.visual==="plant") body=`<path d="M50 87V33M48 51C26 47 21 27 22 20C40 19 51 30 50 47M51 60C73 57 80 39 79 31C60 29 50 41 50 57" fill="${color}" stroke="${color}" stroke-width="4"/><path d="M31 85H69L64 96H36Z" fill="#b7784b"/>`;
  if(def.visual==="bottle") body=`<path d="M42 15H58V27L64 35V84C64 90 36 90 36 84V35L42 27Z" fill="${color}" opacity=".82" stroke="#285575" stroke-width="2"/><rect x="42" y="9" width="16" height="7" rx="2" fill="#284d6e"/><path d="M43 40V74" stroke="#fff" opacity=".45" stroke-width="4"/>`;
@@ -470,27 +514,25 @@ function correctionArt(data){
 }
 function isMeasuredCorrection(def){return def.measurable!==false&&def.weight!==undefined}
 function correctionState(el){
- return {category:el.dataset.category,item:el.dataset.item,left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,80),height:num(el.dataset.height,80),rotation:num(el.dataset.rotation,0),opacity:num(el.dataset.opacity,100),locked:el.dataset.locked||"false",keepRatio:el.dataset.keepRatio!=="false",weight:num(el.dataset.weight,0),unit:el.dataset.unit||"г",showWeight:el.dataset.showWeight!=="false",material:el.dataset.material||"",shape:el.dataset.shape||"",quantity:num(el.dataset.quantity,1)};
+ return {category:el.dataset.category,item:el.dataset.item,left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,80),height:num(el.dataset.height,80),rotation:num(el.dataset.rotation,0),opacity:num(el.dataset.opacity,100),locked:el.dataset.locked||"false",visible:isLayerVisible(el),keepRatio:el.dataset.keepRatio!=="false",weight:num(el.dataset.weight,0),unit:el.dataset.unit||"г",showWeight:el.dataset.showWeight!=="false",showCaption:el.dataset.showCaption!=="false",caption:el.dataset.caption||"",material:el.dataset.material||"",shape:el.dataset.shape||"",quantity:num(el.dataset.quantity,1),arrangement:el.dataset.arrangement||"compact"};
 }
 function applyCorrectionGroup(el){
  const group=correctionGroups[el.dataset.category]||{visible:true,opacity:100};
- el.hidden=!group.visible;
+ el.hidden=!isLayerVisible(el)||!group.visible;
  el.style.opacity=(num(el.dataset.opacity,100)*num(group.opacity,100)/10000).toFixed(3);
 }
 function updateCorrectionArt(el){
  const data=correctionState(el),def=correctionDefinition(data.category,data.item),img=el.querySelector("img");
  img.src=correctionArt(data);
  const caption=el.querySelector(".correction-caption");
- let detail="";
- if(def.visual==="spiral") detail=getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.quantity+" шт.";
- else if(isMeasuredCorrection(def)&&data.showWeight) detail=data.weight+" "+data.unit;
- caption.innerText=detail?def.name+" · "+detail:def.name;
+ caption.innerText=correctionCaptionValue(data,def);
+ caption.hidden=!data.showCaption;
  applyCorrectionGroup(el);
 }
 function correctionDetail(el){
  const data=correctionState(el),def=correctionDefinition(data.category,data.item);
- if(def.visual==="spiral")return getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.quantity+" шт.";
- if(isMeasuredCorrection(def)&&data.showWeight)return data.weight+" "+data.unit;
+ const detail=correctionParameterText(data,def);
+ if(detail)return detail;
  return correctionCategory(data.category).name;
 }
 function applyCorrectionGroups(){
@@ -544,7 +586,7 @@ function renderCorrectionLibrary(search=""){
    button.dataset.category=category.id;
    button.dataset.item=item.id;
    const preview=document.createElement("img");
-   preview.src=correctionArt({category:category.id,item:item.id,material:item.material,shape:item.shape,quantity:item.quantity});
+   preview.src=correctionArt({category:category.id,item:item.id,material:item.material,shape:item.shape,quantity:item.quantity,arrangement:item.arrangement});
    preview.alt="";
    const name=document.createElement("span");
    name.innerText=item.name;
@@ -561,6 +603,7 @@ function initCorrectionLibrary(){
  correctionMaterial.innerHTML=CORRECTIONS.materials.map(item=>`<option value="${item.id}">${item.name}</option>`).join("");
  correctionShape.innerHTML=CORRECTIONS.spiralShapes.map(item=>`<option value="${item.id}">${item.name}</option>`).join("");
  correctionQuantity.innerHTML=CORRECTIONS.spiralQuantities.map(item=>`<option value="${item}">${item} шт.</option>`).join("");
+ correctionArrangement.innerHTML=CORRECTIONS.spiralArrangements.map(item=>`<option value="${item.id}">${item.name}</option>`).join("");
  correctionSearch.oninput=e=>renderCorrectionLibrary(e.target.value);
  renderCorrectionLibrary();
 }
@@ -575,7 +618,8 @@ function addCorrection(categoryId,itemId,d={}){
  wrap.dataset.category=categoryId;wrap.dataset.item=itemId;
  wrap.dataset.width=width;wrap.dataset.height=height;wrap.dataset.rotation=d.rotation??0;wrap.dataset.opacity=d.opacity??100;
  wrap.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";wrap.dataset.keepRatio=d.keepRatio===false||d.keepRatio==="false"?"false":"true";
- wrap.dataset.weight=d.weight??def.weight??0;wrap.dataset.unit=d.unit||"г";wrap.dataset.showWeight=d.showWeight===false||d.showWeight==="false"?"false":"true";wrap.dataset.material=d.material||def.material||"copper";wrap.dataset.shape=d.shape||def.shape||"circle";wrap.dataset.quantity=d.quantity??d.turns??def.quantity??1;
+ wrap.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
+ wrap.dataset.weight=d.weight??def.weight??0;wrap.dataset.unit=d.unit||"г";wrap.dataset.showWeight=d.showWeight===false||d.showWeight==="false"?"false":"true";wrap.dataset.showCaption=d.showCaption===false||d.showCaption==="false"?"false":"true";wrap.dataset.caption=d.caption??def.name;wrap.dataset.material=d.material||def.material||"copper";wrap.dataset.shape=d.shape||def.shape||"circle";wrap.dataset.quantity=d.quantity??d.turns??def.quantity??1;wrap.dataset.arrangement=d.arrangement||def.arrangement||"compact";
  const slot=correctionCounter-1;
  wrap.style.left=(d.left??635+(slot%3)*145)+"px";wrap.style.top=(d.top??465+Math.floor(slot/3)*135)+"px";wrap.style.width=width+"px";wrap.style.height=height+"px";wrap.style.transform=`rotate(${wrap.dataset.rotation}deg)`;
  wrap.classList.toggle("locked",wrap.dataset.locked==="true");
@@ -590,9 +634,10 @@ function updCorrectionPanel(){
  const data=correctionState(sel),def=correctionDefinition(data.category,data.item),category=correctionCategory(data.category);
  correctionName.innerText=def.name;correctionCategoryName.innerText=category.name;correctionPreview.src=correctionArt(data);
  lockCorrection.checked=data.locked==="true";correctionOp.value=data.opacity;correctionOpTxt.innerText=data.opacity;correctionRot.value=data.rotation;correctionRotTxt.innerText=data.rotation;
+ correctionShowCaption.checked=data.showCaption;correctionCaptionText.value=data.caption||def.name;
  correctionKeepRatio.checked=data.keepRatio;correctionWidth.value=Math.round(data.width);correctionHeight.value=Math.round(data.height);correctionSize.value=Math.min(600,Math.round(data.width));correctionSizeTxt.innerText=Math.round(data.width);
  correctionMeasurement.hidden=!isMeasuredCorrection(def);correctionShowWeight.checked=data.showWeight;correctionWeightFields.hidden=!data.showWeight;correctionWeight.value=data.weight;correctionWeightUnit.value=data.unit;
- spiralControls.hidden=def.visual!=="spiral";correctionMaterial.value=data.material;correctionShape.value=data.shape;correctionQuantity.value=String(data.quantity);
+ spiralControls.hidden=def.visual!=="spiral";correctionMaterial.value=data.material;correctionShape.value=data.shape;correctionQuantity.value=String(data.quantity);correctionArrangement.value=data.arrangement;spiralArrangementField.hidden=data.quantity<=1;
 }
 function setCorrectionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.rotation=rotation;sel.style.transform=`rotate(${rotation}deg)`;updCorrectionPanel()}
 function stepCorrectionRot(delta){pushHistory();setCorrectionRotation(num(correctionRot.value,0)+delta)}
@@ -642,19 +687,24 @@ correctionWeight.onfocus=()=>pushHistory();
 correctionWeight.oninput=e=>{if(selType!=="correction")return;sel.dataset.weight=e.target.value||0;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionShowWeight.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.showWeight=e.target.checked?"true":"false";updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionWeightUnit.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.unit=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
+correctionShowCaption.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.showCaption=e.target.checked?"true":"false";updateCorrectionArt(sel);refreshLayers()};
+correctionCaptionText.onfocus=()=>pushHistory();
+correctionCaptionText.oninput=e=>{if(selType!=="correction")return;sel.dataset.caption=e.target.value;updateCorrectionArt(sel);refreshLayers()};
 correctionMaterial.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.material=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionShape.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.shape=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionQuantity.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.quantity=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
-function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();labelCounter++;let l=document.createElement("div");l.className="text-label";l.dataset.rot=d.rotation??0;l.dataset.fs=d.fontSize??22;l.innerText=d.text??"Надпись";l.style.left=(d.left??120+labelCounter*20)+"px";l.style.top=(d.top??120+labelCounter*20)+"px";l.style.fontSize=l.dataset.fs+"px";l.style.transform=`rotate(${l.dataset.rot}deg)`;prepGeneric(l,"label");canvas.appendChild(l);select(l,"label");updLabelPanel()}
+correctionArrangement.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.arrangement=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
+function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();labelCounter++;let l=document.createElement("div");l.className="text-label";l.dataset.rot=d.rotation??0;l.dataset.fs=d.fontSize??22;l.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";l.innerText=d.text??"Надпись";l.style.left=(d.left??120+labelCounter*20)+"px";l.style.top=(d.top??120+labelCounter*20)+"px";l.style.fontSize=l.dataset.fs+"px";l.style.transform=`rotate(${l.dataset.rot}deg)`;prepGeneric(l,"label");canvas.appendChild(l);applyLayerVisibility(l,"label");select(l,"label");updLabelPanel()}
 function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=sel.dataset.rot;labelDeg.innerText=sel.dataset.rot}
 labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){sel.dataset.rot=e.target.value;sel.style.transform=`rotate(${e.target.value}deg)`;labelDeg.innerText=e.target.value}}
-function addSticker(color,d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();stickerCounter++;let s=document.createElement("div");s.className="sticker";s.dataset.color=d.color??color;s.dataset.size=d.size??38;s.innerText="★";s.style.color=s.dataset.color==="green"?"#18a558":"#d62828";s.style.left=(d.left??170+stickerCounter*24)+"px";s.style.top=(d.top??170+stickerCounter*24)+"px";s.style.fontSize=s.dataset.size+"px";prepGeneric(s,"sticker");canvas.appendChild(s);select(s,"sticker")}function resizeSticker(n){if(selType!="sticker")return;pushHistory();let sz=Math.max(12,(+sel.dataset.size||38)+n*4);sel.dataset.size=sz;sel.style.fontSize=sz+"px"}
+function addSticker(color,d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();stickerCounter++;let s=document.createElement("div");s.className="sticker";s.dataset.color=d.color??color;s.dataset.size=d.size??38;s.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";s.innerText="★";s.style.color=s.dataset.color==="green"?"#18a558":"#d62828";s.style.left=(d.left??170+stickerCounter*24)+"px";s.style.top=(d.top??170+stickerCounter*24)+"px";s.style.fontSize=s.dataset.size+"px";prepGeneric(s,"sticker");canvas.appendChild(s);applyLayerVisibility(s,"sticker");select(s,"sticker")}function resizeSticker(n){if(selType!="sticker")return;pushHistory();let sz=Math.max(12,(+sel.dataset.size||38)+n*4);sel.dataset.size=sz;sel.style.fontSize=sz+"px"}
 function addAxes(){
  if(document.querySelector(".axis-group")) return;
  if(!isRestoring) pushHistory();
  let wrap=document.createElement("div");
  wrap.className="axis-group axis";
  wrap.dataset.locked="false";
+ wrap.dataset.visible="true";
  wrap.dataset.len="1800";
  wrap.dataset.opacity="100";
  wrap.style.left="-100px";
@@ -682,6 +732,7 @@ function addAxes(){
  wrap.ontouchstart=startAxisDrag;
  wrap.onclick=e=>{e.stopPropagation();select(wrap,"axis")};
  canvas.appendChild(wrap);
+ applyLayerVisibility(wrap,"axis");
  select(wrap,"axis");
 }
 function updateAxisVisual(g){
@@ -724,14 +775,14 @@ lockAxes.onchange=e=>{const g=document.querySelector(".axis-group"); if(g){pushH
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
 function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove()}clearSel()}canvas.onclick=clearSel;
-function collect(){let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),locked:g.dataset.locked||"false",directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22)}));let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38)}));let axes=[]; const ag=document.querySelector(".axis-group"); if(ag){axes=[{left:parseFloat(ag.style.left),top:parseFloat(ag.style.top),locked:ag.dataset.locked||"false",len:num(ag.dataset.len,1800),opacity:num(ag.dataset.opacity,100)}]};
-let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",rotation:num(o.dataset.rotation,0)}));
-let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
+function collect(){let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));let axes=[]; const ag=document.querySelector(".axis-group"); if(ag){axes=[{left:parseFloat(ag.style.left),top:parseFloat(ag.style.top),locked:ag.dataset.locked||"false",visible:isLayerVisible(ag),len:num(ag.dataset.len,1800),opacity:num(ag.dataset.opacity,100)}]};
+let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
+let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
 let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
 let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
-return{version:"4.0",planImageData:planData,planRotation:num(planRot.value,0),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,stickers,axes,overlays,purushas,corrections,correctionGroups:groups}}
+return{version:"4.2",planImageData:planData,planVisible:isLayerVisible(plan),planRotation:num(planRot.value,0),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,stickers,axes,overlays,purushas,corrections,correctionGroups:groups}}
 function saveProject(){download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),"vastu-project.json")}projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
-function loadProject(p){document.querySelectorAll(".vastu-grid,.text-label,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());clearSel();planData=p.planImageData||"";if(planData)plan.src=planData;else plan.removeAttribute("src");planOpacity.value=p.planOpacity??85;planOpacityTxt.innerText=planOpacity.value;plan.style.opacity=planOpacity.value/100;lastPlanRot=0;setPlanRot(p.planRotation??0);zoomLevel=p.zoomLevel??1;applyZoom();initCorrectionGroups(p.correctionGroups||{});renderCorrectionLibrary(correctionSearch.value);(p.grids||[]).forEach(addGrid);(p.labels||[]).forEach(addTextLabel);(p.stickers||[]).forEach(s=>addSticker(s.color,s));(p.axes||[]).forEach(ax=>{addAxes(); const g=document.querySelector(".axis-group"); if(g){g.style.left=ax.left+"px"; g.style.top=ax.top+"px"; g.dataset.locked=ax.locked||"false"; g.dataset.len=ax.len??1800; g.dataset.opacity=ax.opacity??100; lockAxes.checked=g.dataset.locked==="true"; updateAxisVisual(g);}});(p.overlays||[]).forEach(addOverlayImage);(p.purushas||[]).forEach(addPurushaGrid);(p.corrections||[]).forEach(o=>addCorrection(o.category,o.item,o));applyCorrectionGroups()}
+function loadProject(p){document.querySelectorAll(".vastu-grid,.text-label,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());clearSel();planData=p.planImageData||"";if(planData)plan.src=planData;else plan.removeAttribute("src");plan.dataset.visible=p.planVisible===false?"false":"true";applyLayerVisibility(plan,"plan");planOpacity.value=p.planOpacity??85;planOpacityTxt.innerText=planOpacity.value;plan.style.opacity=planOpacity.value/100;lastPlanRot=0;setPlanRot(p.planRotation??0);zoomLevel=p.zoomLevel??1;applyZoom();initCorrectionGroups(p.correctionGroups||{});renderCorrectionLibrary(correctionSearch.value);(p.grids||[]).forEach(addGrid);(p.labels||[]).forEach(addTextLabel);(p.stickers||[]).forEach(s=>addSticker(s.color,s));(p.axes||[]).forEach(ax=>{addAxes(); const g=document.querySelector(".axis-group"); if(g){g.style.left=ax.left+"px"; g.style.top=ax.top+"px"; g.dataset.locked=ax.locked||"false";g.dataset.visible=ax.visible===false||ax.visible==="false"?"false":"true"; g.dataset.len=ax.len??1800; g.dataset.opacity=ax.opacity??100; lockAxes.checked=g.dataset.locked==="true"; updateAxisVisual(g);applyLayerVisibility(g,"axis");}});(p.overlays||[]).forEach(addOverlayImage);(p.purushas||[]).forEach(addPurushaGrid);(p.corrections||[]).forEach(o=>addCorrection(o.category,o.item,o));applyCorrectionGroups()}
 function exportPDF(){document.body.classList.add("exporting");const done=()=>document.body.classList.remove("exporting");window.addEventListener("afterprint",done,{once:true});window.print();setTimeout(done,1500)}function download(blob,name){let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 async function exportPNG(){
  try{await html2canvasLike()}catch(err){alert("Не удалось создать PNG. Проверь, что страница загружена полностью.")}
@@ -745,7 +796,45 @@ async function asDataURL(src){
 }
 async function html2canvasLike(){let svg=await buildSVG(),img=new Image(),url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"}));img.onload=()=>{let c=document.createElement("canvas");c.width=1600;c.height=1200;let ctx=c.getContext("2d");ctx.fillStyle="white";ctx.fillRect(0,0,1600,1200);ctx.drawImage(img,0,0);c.toBlob(b=>download(b,"vastu-map.png"));URL.revokeObjectURL(url)};img.onerror=()=>{URL.revokeObjectURL(url);alert("Не удалось подготовить изображение для PNG.")};img.src=url}
 function esc(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&apos;")}
-async function buildSVG(){let p=collect(),svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="white"/>`;if(p.planImageData)svg+=`<g transform="translate(800 600) rotate(${p.planRotation})"><image href="${p.planImageData}" x="-525" y="-390" width="1050" height="780" opacity="${p.planOpacity/100}" preserveAspectRatio="xMidYMid meet"/></g>`;for(const o of p.purushas||[]){const src=await asDataURL(o.src||PURUSHA_GRID_SRC);svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;}for(const o of p.overlays||[]){if(o.src)svg+=`<image href="${o.src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;}p.grids.forEach(g=>{let cx=g.left+g.width/2,cy=g.top+g.height/2,cw=g.width/3,ch=g.height/3,cols=["#daeef1","#f2f5ee","#f4efef","#eceff8","#fff","#f4f4f0","#f1edf0","#faf1f0","#f7eff8"];svg+=`<g transform="rotate(${g.rotation} ${cx} ${cy})">`;for(let r=0;r<3;r++)for(let c=0;c<3;c++){let i=r*3+c;svg+=`<rect x="${g.left+c*cw}" y="${g.top+r*ch}" width="${cw}" height="${ch}" fill="${cols[i]}" opacity="${g.opacity/100}" stroke="black"/><text x="${g.left+c*cw+cw/2}" y="${g.top+r*ch+ch/2}" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="middle">${esc(g.directions[i]||"")}</text>`}svg+=`</g>`});p.axes.forEach(a=>{let len=a.len,op=a.opacity/100;[90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${rot} ${a.left+len/2} ${a.top})"/>`;});});(p.corrections||[]).forEach(o=>{const group=p.correctionGroups[o.category]||{visible:true,opacity:100};if(!group.visible)return;const opacity=o.opacity*group.opacity/10000,def=correctionDefinition(o.category,o.item),src=correctionArt(o);let detail=def.name;if(def.visual==="spiral")detail+=` - ${getCorrectionMaterial(o.material).name}, ${correctionShapeName(o.shape)}, ${o.quantity} шт.`;else if(isMeasuredCorrection(def)&&o.showWeight)detail+=` - ${o.weight} ${o.unit}`;svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${opacity}" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/><text x="${o.left+o.width/2}" y="${o.top+o.height+14}" text-anchor="middle" font-size="10" fill="#49463f" opacity="${opacity}">${esc(detail)}</text>`;});p.labels.forEach(l=>svg+=`<text x="${l.left}" y="${l.top}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top})">${esc(l.text)}</text>`);p.stickers.forEach(s=>svg+=`<text x="${s.left}" y="${s.top}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`);return svg+"</svg>"}
+async function buildSVG(){
+ const p=collect();
+ let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="white"/>`;
+ if(p.planImageData&&p.planVisible!==false) svg+=`<g transform="translate(800 600) rotate(${p.planRotation})"><image href="${p.planImageData}" x="-525" y="-390" width="1050" height="780" opacity="${p.planOpacity/100}" preserveAspectRatio="xMidYMid meet"/></g>`;
+ for(const o of p.purushas||[]){
+  if(o.visible===false) continue;
+  const src=await asDataURL(o.src||PURUSHA_GRID_SRC);
+  svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;
+ }
+ for(const o of p.overlays||[]){
+  if(o.visible!==false&&o.src) svg+=`<image href="${o.src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;
+ }
+ p.grids.forEach(g=>{
+  if(g.visible===false)return;
+  const cx=g.left+g.width/2,cy=g.top+g.height/2,cw=g.width/3,ch=g.height/3;
+  const cols=["#daeef1","#f2f5ee","#f4efef","#eceff8","#fff","#f4f4f0","#f1edf0","#faf1f0","#f7eff8"];
+  svg+=`<g transform="rotate(${g.rotation} ${cx} ${cy})">`;
+  for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+   const i=r*3+c;
+   svg+=`<rect x="${g.left+c*cw}" y="${g.top+r*ch}" width="${cw}" height="${ch}" fill="${cols[i]}" opacity="${g.opacity/100}" stroke="black"/><text x="${g.left+c*cw+cw/2}" y="${g.top+r*ch+ch/2}" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="middle">${esc(g.directions[i]||"")}</text>`;
+  }
+  svg+=`</g>`;
+ });
+ p.axes.forEach(a=>{
+  if(a.visible===false)return;
+  const len=a.len,op=a.opacity/100;
+  [90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${rot} ${a.left+len/2} ${a.top})"/>`;});
+ });
+ (p.corrections||[]).forEach(o=>{
+  const group=p.correctionGroups[o.category]||{visible:true,opacity:100};
+  if(o.visible===false||!group.visible)return;
+  const opacity=o.opacity*group.opacity/10000,def=correctionDefinition(o.category,o.item),src=correctionArt(o);
+  svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${opacity}" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;
+  if(o.showCaption!==false)svg+=`<text x="${o.left+o.width/2}" y="${o.top+o.height+14}" text-anchor="middle" font-size="10" fill="#49463f" opacity="${opacity}">${esc(correctionCaptionValue(o,def))}</text>`;
+ });
+ p.labels.forEach(l=>{if(l.visible!==false)svg+=`<text x="${l.left}" y="${l.top}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top})">${esc(l.text)}</text>`;});
+ p.stickers.forEach(s=>{if(s.visible!==false)svg+=`<text x="${s.left}" y="${s.top}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`;});
+ return svg+"</svg>";
+}
 
 const propertyNames={grid:"Сетка направлений",purusha:"Пуруша-мандала",axis:"Оси направлений",overlay:"Дополнительная картинка",label:"Надпись",sticker:"Метка анализа",correction:"Коррекция",plan:"План квартиры"};
 function showProperties(type){
@@ -764,18 +853,18 @@ function refreshLayers(){
  const list=document.getElementById("layersList");
  if(!list)return;
  list.innerHTML="";
- const layers=[{el:plan,type:"plan",name:"План квартиры",detail:planData?"Загружен":"Не загружен",icon:"P"}];
- document.querySelectorAll(".vastu-grid").forEach((el,i)=>layers.push({el,type:"grid",name:"Сетка направлений",detail:"Сетка "+(i+1),icon:"#" }));
- document.querySelectorAll(".purusha-grid").forEach((el,i)=>layers.push({el,type:"purusha",name:"Пуруша-мандала",detail:"Слой "+(i+1),icon:"M"}));
- document.querySelectorAll(".axis-group").forEach(el=>layers.push({el,type:"axis",name:"Оси",detail:"Направления",icon:"+"}));
- document.querySelectorAll(".overlay-wrap").forEach((el,i)=>layers.push({el,type:"overlay",name:"Доп. картинка",detail:"Слой "+(i+1),icon:"I"}));
+ const layers=[{el:plan,type:"plan",name:"План квартиры",detail:planData?"Загружен":"Не загружен",icon:"P",hidden:!isLayerVisible(plan)}];
+ document.querySelectorAll(".vastu-grid").forEach((el,i)=>layers.push({el,type:"grid",name:"Сетка направлений",detail:"Сетка "+(i+1),icon:"#",hidden:!isLayerVisible(el)}));
+ document.querySelectorAll(".purusha-grid").forEach((el,i)=>layers.push({el,type:"purusha",name:"Пуруша-мандала",detail:"Слой "+(i+1),icon:"M",hidden:!isLayerVisible(el)}));
+ document.querySelectorAll(".axis-group").forEach(el=>layers.push({el,type:"axis",name:"Оси",detail:"Направления",icon:"+",hidden:!isLayerVisible(el)}));
+ document.querySelectorAll(".overlay-wrap").forEach((el,i)=>layers.push({el,type:"overlay",name:"Доп. картинка",detail:"Слой "+(i+1),icon:"I",hidden:!isLayerVisible(el)}));
  document.querySelectorAll(".correction-object").forEach(el=>{
   const def=correctionDefinition(el.dataset.category,el.dataset.item);
   const group=correctionGroups[el.dataset.category]||{visible:true};
-  layers.push({el,type:"correction",name:def.name,detail:correctionDetail(el),icon:"C",hidden:!group.visible});
+  layers.push({el,type:"correction",name:correctionTitle(correctionState(el),def),detail:correctionDetail(el),icon:"C",hidden:!isLayerVisible(el)||!group.visible,groupHidden:!group.visible});
  });
- document.querySelectorAll(".text-label").forEach((el,i)=>layers.push({el,type:"label",name:"Надпись",detail:"Текст "+(i+1),icon:"T"}));
- document.querySelectorAll(".sticker").forEach((el,i)=>layers.push({el,type:"sticker",name:el.dataset.color==="green"?"Ресурс":"Проблема",detail:"Метка "+(i+1),icon:"*"}));
+ document.querySelectorAll(".text-label").forEach((el,i)=>layers.push({el,type:"label",name:"Надпись",detail:"Текст "+(i+1),icon:"T",hidden:!isLayerVisible(el)}));
+ document.querySelectorAll(".sticker").forEach((el,i)=>layers.push({el,type:"sticker",name:el.dataset.color==="green"?"Ресурс":"Проблема",detail:"Метка "+(i+1),icon:"*",hidden:!isLayerVisible(el)}));
  layers.forEach(layer=>{
   const button=document.createElement("button");
   button.type="button";
@@ -800,9 +889,24 @@ function refreshLayers(){
   if(layer.hidden){
    const hidden=document.createElement("span");
    hidden.className="layer-hidden";
-   hidden.innerText="скрыт";
+   hidden.innerText=layer.groupHidden?"раздел скрыт":"скрыт";
    button.appendChild(hidden);
   }
+  const visibility=document.createElement("span");
+  const layerVisible=isLayerVisible(layer.el);
+  visibility.className="layer-visibility"+(layerVisible?"":" off");
+  visibility.title=layerVisible?"Скрыть слой":"Показать слой";
+  visibility.setAttribute("role","button");
+  visibility.setAttribute("tabindex","0");
+  visibility.setAttribute("aria-label",visibility.title);
+  visibility.innerHTML="&#128065;";
+  const toggleVisibility=e=>{
+   e.preventDefault();e.stopPropagation();
+   setLayerVisibility(layer.el,layer.type,!isLayerVisible(layer.el));
+  };
+  visibility.onclick=toggleVisibility;
+  visibility.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){toggleVisibility(e);}};
+  button.appendChild(visibility);
   button.onclick=()=>layer.type==="plan"?selectPlan():select(layer.el,layer.type);
   list.appendChild(button);
  });
