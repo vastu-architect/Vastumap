@@ -193,16 +193,19 @@
           <h3>Параметры спирали</h3>
           <label>Материал<select id="correctionMaterial"></select></label>
           <label>Форма<select id="correctionShape"></select></label>
-          <label>Количество<select id="correctionTurns"></select></label>
+          <label>Количество спиралей<select id="correctionQuantity"></select></label>
         </div>
         <div class="measurement-fields" id="correctionMeasurement">
-          <label>Вес <input type="number" min="0" step="0.1" id="correctionWeight"></label>
-          <label>Единица
-            <select id="correctionWeightUnit">
-              <option value="г">г</option>
-              <option value="кг">кг</option>
-            </select>
-          </label>
+          <label class="switch-line measurement-toggle"><input type="checkbox" id="correctionShowWeight" checked> Показывать вес на плане</label>
+          <div class="measurement-values" id="correctionWeightFields">
+            <label>Вес <input type="number" min="0" step="0.1" id="correctionWeight"></label>
+            <label>Единица
+              <select id="correctionWeightUnit">
+                <option value="г">г</option>
+                <option value="кг">кг</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div class="value-row"><label>Прозрачность объекта</label><span class="value"><span id="correctionOpTxt">100</span>%</span></div>
         <input type="range" min="0" max="100" value="100" id="correctionOp">

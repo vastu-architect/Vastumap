@@ -409,11 +409,12 @@ function initCorrectionGroups(saved={}){
  });
 }
 function svgData(svg){return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)}
-function correctionSpiralPoints(shape,turns){
+function correctionSpiralPoints(shape){
  const points=[];
- const total=turns*32;
+ const loops=4;
+ const total=loops*32;
  for(let i=0;i<=total;i++){
-  const p=i/total,angle=p*turns*Math.PI*2-Math.PI/2,radius=5+p*40;
+  const p=i/total,angle=p*loops*Math.PI*2-Math.PI/2,radius=5+p*40;
   let x=50+Math.cos(angle)*radius,y=50+Math.sin(angle)*radius;
   if(shape==="square"){
    const m=Math.max(Math.abs(x-50),Math.abs(y-50))||1;
@@ -430,6 +431,17 @@ function correctionSpiralPoints(shape,turns){
  }
  return points.join(" ");
 }
+function correctionSpiralLayout(quantity){
+ if(quantity===5)return [{x:35,y:35,s:.3},{x:8,y:8,s:.3},{x:62,y:8,s:.3},{x:8,y:62,s:.3},{x:62,y:62,s:.3}];
+ if(quantity===7)return [{x:36,y:36,s:.28},{x:36,y:5,s:.28},{x:63,y:20,s:.28},{x:63,y:53,s:.28},{x:36,y:67,s:.28},{x:9,y:53,s:.28},{x:9,y:20,s:.28}];
+ if(quantity===9)return [3,35,67].flatMap(y=>[3,35,67].map(x=>({x,y,s:.3})));
+ return [{x:5,y:5,s:.9}];
+}
+function correctionSpiralArt(data,def,color){
+ const points=correctionSpiralPoints(data.shape||def.shape);
+ const quantity=num(data.quantity,num(data.turns,def.quantity||1));
+ return correctionSpiralLayout(quantity).map(item=>`<g transform="translate(${item.x} ${item.y}) scale(${item.s})"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="50" r="3" fill="${color}"/></g>`).join("");
+}
 function correctionArt(data){
  const def=correctionDefinition(data.category,data.item);
  if(!def)return "";
@@ -440,7 +452,7 @@ function correctionArt(data){
  if(def.visual==="pebble") body=`<defs><radialGradient id="g" cx="30%" cy="22%"><stop stop-color="${light}"/><stop offset=".24" stop-color="${color}"/><stop offset="1" stop-color="${color}" stop-opacity=".75"/></radialGradient></defs><path d="M15 52C14 30 29 13 53 15C76 16 89 32 86 55C84 77 68 89 43 86C23 84 12 71 15 52Z" fill="url(#g)" stroke="${color}" stroke-width="3"/>`;
  if(def.visual==="pearl") body=`<defs><radialGradient id="g" cx="30%" cy="25%"><stop stop-color="#fff"/><stop offset=".45" stop-color="${color}"/><stop offset="1" stop-color="#b9b3ab"/></radialGradient></defs><circle cx="50" cy="50" r="38" fill="url(#g)" stroke="#d2ccc3" stroke-width="2"/>`;
  if(def.visual==="coral") body=`<path d="M48 90V47M48 55L30 36V18M48 68L70 48V27M30 39L18 29M70 50L83 37M48 42L56 28V12" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round"/><path d="M48 90V47M48 55L30 36M48 68L70 48" fill="none" stroke="#ee8271" stroke-width="3" opacity=".55"/>`;
- if(def.visual==="spiral") body=`<polyline points="${correctionSpiralPoints(data.shape||def.shape,data.turns||def.turns)}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="50" r="2.5" fill="${color}"/>`;
+ if(def.visual==="spiral") body=correctionSpiralArt(data,def,color);
  if(def.visual==="wire") body=`<path d="M6 55C18 20 31 88 46 48S73 20 94 53" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"/><path d="M6 52C18 17 31 85 46 45S73 17 94 50" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="2"/>`;
  if(def.visual==="metal") body=`<defs><linearGradient id="g"><stop stop-color="#fff" stop-opacity=".65"/><stop offset=".35" stop-color="${color}"/><stop offset="1" stop-color="${color}" stop-opacity=".65"/></linearGradient></defs><rect x="15" y="20" width="70" height="60" rx="9" fill="url(#g)" stroke="${dark}" stroke-opacity=".38" stroke-width="2"/><path d="M25 35H75M25 45H63" stroke="#fff" stroke-opacity=".35"/>`;
  if(def.visual==="lingam") body=`<defs><linearGradient id="g"><stop stop-color="#fff" stop-opacity=".7"/><stop offset=".3" stop-color="${color}"/><stop offset="1" stop-color="${color}" stop-opacity=".7"/></linearGradient></defs><ellipse cx="50" cy="84" rx="36" ry="9" fill="${color}" opacity=".6"/><path d="M34 76V36C34 16 66 16 66 36V76Z" fill="url(#g)" stroke="${dark}" stroke-opacity=".3" stroke-width="2"/><ellipse cx="50" cy="76" rx="29" ry="8" fill="${color}"/>`;
@@ -458,7 +470,7 @@ function correctionArt(data){
 }
 function isMeasuredCorrection(def){return def.measurable!==false&&def.weight!==undefined}
 function correctionState(el){
- return {category:el.dataset.category,item:el.dataset.item,left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,80),height:num(el.dataset.height,80),rotation:num(el.dataset.rotation,0),opacity:num(el.dataset.opacity,100),locked:el.dataset.locked||"false",keepRatio:el.dataset.keepRatio!=="false",weight:num(el.dataset.weight,0),unit:el.dataset.unit||"г",material:el.dataset.material||"",shape:el.dataset.shape||"",turns:num(el.dataset.turns,0)};
+ return {category:el.dataset.category,item:el.dataset.item,left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,80),height:num(el.dataset.height,80),rotation:num(el.dataset.rotation,0),opacity:num(el.dataset.opacity,100),locked:el.dataset.locked||"false",keepRatio:el.dataset.keepRatio!=="false",weight:num(el.dataset.weight,0),unit:el.dataset.unit||"г",showWeight:el.dataset.showWeight!=="false",material:el.dataset.material||"",shape:el.dataset.shape||"",quantity:num(el.dataset.quantity,1)};
 }
 function applyCorrectionGroup(el){
  const group=correctionGroups[el.dataset.category]||{visible:true,opacity:100};
@@ -470,15 +482,15 @@ function updateCorrectionArt(el){
  img.src=correctionArt(data);
  const caption=el.querySelector(".correction-caption");
  let detail="";
- if(def.visual==="spiral") detail=getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.turns;
- else if(isMeasuredCorrection(def)) detail=data.weight+" "+data.unit;
+ if(def.visual==="spiral") detail=getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.quantity+" шт.";
+ else if(isMeasuredCorrection(def)&&data.showWeight) detail=data.weight+" "+data.unit;
  caption.innerText=detail?def.name+" · "+detail:def.name;
  applyCorrectionGroup(el);
 }
 function correctionDetail(el){
  const data=correctionState(el),def=correctionDefinition(data.category,data.item);
- if(def.visual==="spiral")return getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.turns;
- if(isMeasuredCorrection(def))return data.weight+" "+data.unit;
+ if(def.visual==="spiral")return getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.quantity+" шт.";
+ if(isMeasuredCorrection(def)&&data.showWeight)return data.weight+" "+data.unit;
  return correctionCategory(data.category).name;
 }
 function applyCorrectionGroups(){
@@ -532,7 +544,7 @@ function renderCorrectionLibrary(search=""){
    button.dataset.category=category.id;
    button.dataset.item=item.id;
    const preview=document.createElement("img");
-   preview.src=correctionArt({category:category.id,item:item.id,material:item.material,shape:item.shape,turns:item.turns});
+   preview.src=correctionArt({category:category.id,item:item.id,material:item.material,shape:item.shape,quantity:item.quantity});
    preview.alt="";
    const name=document.createElement("span");
    name.innerText=item.name;
@@ -548,7 +560,7 @@ function initCorrectionLibrary(){
  initCorrectionGroups();
  correctionMaterial.innerHTML=CORRECTIONS.materials.map(item=>`<option value="${item.id}">${item.name}</option>`).join("");
  correctionShape.innerHTML=CORRECTIONS.spiralShapes.map(item=>`<option value="${item.id}">${item.name}</option>`).join("");
- correctionTurns.innerHTML=CORRECTIONS.spiralTurns.map(item=>`<option value="${item}">${item}</option>`).join("");
+ correctionQuantity.innerHTML=CORRECTIONS.spiralQuantities.map(item=>`<option value="${item}">${item} шт.</option>`).join("");
  correctionSearch.oninput=e=>renderCorrectionLibrary(e.target.value);
  renderCorrectionLibrary();
 }
@@ -563,7 +575,7 @@ function addCorrection(categoryId,itemId,d={}){
  wrap.dataset.category=categoryId;wrap.dataset.item=itemId;
  wrap.dataset.width=width;wrap.dataset.height=height;wrap.dataset.rotation=d.rotation??0;wrap.dataset.opacity=d.opacity??100;
  wrap.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";wrap.dataset.keepRatio=d.keepRatio===false||d.keepRatio==="false"?"false":"true";
- wrap.dataset.weight=d.weight??def.weight??0;wrap.dataset.unit=d.unit||"г";wrap.dataset.material=d.material||def.material||"copper";wrap.dataset.shape=d.shape||def.shape||"circle";wrap.dataset.turns=d.turns||def.turns||5;
+ wrap.dataset.weight=d.weight??def.weight??0;wrap.dataset.unit=d.unit||"г";wrap.dataset.showWeight=d.showWeight===false||d.showWeight==="false"?"false":"true";wrap.dataset.material=d.material||def.material||"copper";wrap.dataset.shape=d.shape||def.shape||"circle";wrap.dataset.quantity=d.quantity??d.turns??def.quantity??1;
  const slot=correctionCounter-1;
  wrap.style.left=(d.left??635+(slot%3)*145)+"px";wrap.style.top=(d.top??465+Math.floor(slot/3)*135)+"px";wrap.style.width=width+"px";wrap.style.height=height+"px";wrap.style.transform=`rotate(${wrap.dataset.rotation}deg)`;
  wrap.classList.toggle("locked",wrap.dataset.locked==="true");
@@ -579,8 +591,8 @@ function updCorrectionPanel(){
  correctionName.innerText=def.name;correctionCategoryName.innerText=category.name;correctionPreview.src=correctionArt(data);
  lockCorrection.checked=data.locked==="true";correctionOp.value=data.opacity;correctionOpTxt.innerText=data.opacity;correctionRot.value=data.rotation;correctionRotTxt.innerText=data.rotation;
  correctionKeepRatio.checked=data.keepRatio;correctionWidth.value=Math.round(data.width);correctionHeight.value=Math.round(data.height);correctionSize.value=Math.min(600,Math.round(data.width));correctionSizeTxt.innerText=Math.round(data.width);
- correctionMeasurement.hidden=!isMeasuredCorrection(def);correctionWeight.value=data.weight;correctionWeightUnit.value=data.unit;
- spiralControls.hidden=def.visual!=="spiral";correctionMaterial.value=data.material;correctionShape.value=data.shape;correctionTurns.value=String(data.turns);
+ correctionMeasurement.hidden=!isMeasuredCorrection(def);correctionShowWeight.checked=data.showWeight;correctionWeightFields.hidden=!data.showWeight;correctionWeight.value=data.weight;correctionWeightUnit.value=data.unit;
+ spiralControls.hidden=def.visual!=="spiral";correctionMaterial.value=data.material;correctionShape.value=data.shape;correctionQuantity.value=String(data.quantity);
 }
 function setCorrectionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.rotation=rotation;sel.style.transform=`rotate(${rotation}deg)`;updCorrectionPanel()}
 function stepCorrectionRot(delta){pushHistory();setCorrectionRotation(num(correctionRot.value,0)+delta)}
@@ -628,10 +640,11 @@ correctionSize.oninput=e=>{
 };
 correctionWeight.onfocus=()=>pushHistory();
 correctionWeight.oninput=e=>{if(selType!=="correction")return;sel.dataset.weight=e.target.value||0;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
+correctionShowWeight.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.showWeight=e.target.checked?"true":"false";updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionWeightUnit.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.unit=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionMaterial.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.material=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionShape.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.shape=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
-correctionTurns.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.turns=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
+correctionQuantity.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.quantity=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();labelCounter++;let l=document.createElement("div");l.className="text-label";l.dataset.rot=d.rotation??0;l.dataset.fs=d.fontSize??22;l.innerText=d.text??"Надпись";l.style.left=(d.left??120+labelCounter*20)+"px";l.style.top=(d.top??120+labelCounter*20)+"px";l.style.fontSize=l.dataset.fs+"px";l.style.transform=`rotate(${l.dataset.rot}deg)`;prepGeneric(l,"label");canvas.appendChild(l);select(l,"label");updLabelPanel()}
 function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=sel.dataset.rot;labelDeg.innerText=sel.dataset.rot}
 labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){sel.dataset.rot=e.target.value;sel.style.transform=`rotate(${e.target.value}deg)`;labelDeg.innerText=e.target.value}}
@@ -732,7 +745,7 @@ async function asDataURL(src){
 }
 async function html2canvasLike(){let svg=await buildSVG(),img=new Image(),url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml"}));img.onload=()=>{let c=document.createElement("canvas");c.width=1600;c.height=1200;let ctx=c.getContext("2d");ctx.fillStyle="white";ctx.fillRect(0,0,1600,1200);ctx.drawImage(img,0,0);c.toBlob(b=>download(b,"vastu-map.png"));URL.revokeObjectURL(url)};img.onerror=()=>{URL.revokeObjectURL(url);alert("Не удалось подготовить изображение для PNG.")};img.src=url}
 function esc(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&apos;")}
-async function buildSVG(){let p=collect(),svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="white"/>`;if(p.planImageData)svg+=`<g transform="translate(800 600) rotate(${p.planRotation})"><image href="${p.planImageData}" x="-525" y="-390" width="1050" height="780" opacity="${p.planOpacity/100}" preserveAspectRatio="xMidYMid meet"/></g>`;for(const o of p.purushas||[]){const src=await asDataURL(o.src||PURUSHA_GRID_SRC);svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;}for(const o of p.overlays||[]){if(o.src)svg+=`<image href="${o.src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;}p.grids.forEach(g=>{let cx=g.left+g.width/2,cy=g.top+g.height/2,cw=g.width/3,ch=g.height/3,cols=["#daeef1","#f2f5ee","#f4efef","#eceff8","#fff","#f4f4f0","#f1edf0","#faf1f0","#f7eff8"];svg+=`<g transform="rotate(${g.rotation} ${cx} ${cy})">`;for(let r=0;r<3;r++)for(let c=0;c<3;c++){let i=r*3+c;svg+=`<rect x="${g.left+c*cw}" y="${g.top+r*ch}" width="${cw}" height="${ch}" fill="${cols[i]}" opacity="${g.opacity/100}" stroke="black"/><text x="${g.left+c*cw+cw/2}" y="${g.top+r*ch+ch/2}" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="middle">${esc(g.directions[i]||"")}</text>`}svg+=`</g>`});p.axes.forEach(a=>{let len=a.len,op=a.opacity/100;[90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${rot} ${a.left+len/2} ${a.top})"/>`;});});(p.corrections||[]).forEach(o=>{const group=p.correctionGroups[o.category]||{visible:true,opacity:100};if(!group.visible)return;const opacity=o.opacity*group.opacity/10000,def=correctionDefinition(o.category,o.item),src=correctionArt(o);let detail=def.name;if(def.visual==="spiral")detail+=` - ${getCorrectionMaterial(o.material).name}, ${correctionShapeName(o.shape)}, ${o.turns}`;else if(isMeasuredCorrection(def))detail+=` - ${o.weight} ${o.unit}`;svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${opacity}" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/><text x="${o.left+o.width/2}" y="${o.top+o.height+14}" text-anchor="middle" font-size="10" fill="#49463f" opacity="${opacity}">${esc(detail)}</text>`;});p.labels.forEach(l=>svg+=`<text x="${l.left}" y="${l.top}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top})">${esc(l.text)}</text>`);p.stickers.forEach(s=>svg+=`<text x="${s.left}" y="${s.top}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`);return svg+"</svg>"}
+async function buildSVG(){let p=collect(),svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="white"/>`;if(p.planImageData)svg+=`<g transform="translate(800 600) rotate(${p.planRotation})"><image href="${p.planImageData}" x="-525" y="-390" width="1050" height="780" opacity="${p.planOpacity/100}" preserveAspectRatio="xMidYMid meet"/></g>`;for(const o of p.purushas||[]){const src=await asDataURL(o.src||PURUSHA_GRID_SRC);svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;}for(const o of p.overlays||[]){if(o.src)svg+=`<image href="${o.src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${o.opacity/100}" preserveAspectRatio="none" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;}p.grids.forEach(g=>{let cx=g.left+g.width/2,cy=g.top+g.height/2,cw=g.width/3,ch=g.height/3,cols=["#daeef1","#f2f5ee","#f4efef","#eceff8","#fff","#f4f4f0","#f1edf0","#faf1f0","#f7eff8"];svg+=`<g transform="rotate(${g.rotation} ${cx} ${cy})">`;for(let r=0;r<3;r++)for(let c=0;c<3;c++){let i=r*3+c;svg+=`<rect x="${g.left+c*cw}" y="${g.top+r*ch}" width="${cw}" height="${ch}" fill="${cols[i]}" opacity="${g.opacity/100}" stroke="black"/><text x="${g.left+c*cw+cw/2}" y="${g.top+r*ch+ch/2}" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="middle">${esc(g.directions[i]||"")}</text>`}svg+=`</g>`});p.axes.forEach(a=>{let len=a.len,op=a.opacity/100;[90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${rot} ${a.left+len/2} ${a.top})"/>`;});});(p.corrections||[]).forEach(o=>{const group=p.correctionGroups[o.category]||{visible:true,opacity:100};if(!group.visible)return;const opacity=o.opacity*group.opacity/10000,def=correctionDefinition(o.category,o.item),src=correctionArt(o);let detail=def.name;if(def.visual==="spiral")detail+=` - ${getCorrectionMaterial(o.material).name}, ${correctionShapeName(o.shape)}, ${o.quantity} шт.`;else if(isMeasuredCorrection(def)&&o.showWeight)detail+=` - ${o.weight} ${o.unit}`;svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${opacity}" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/><text x="${o.left+o.width/2}" y="${o.top+o.height+14}" text-anchor="middle" font-size="10" fill="#49463f" opacity="${opacity}">${esc(detail)}</text>`;});p.labels.forEach(l=>svg+=`<text x="${l.left}" y="${l.top}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top})">${esc(l.text)}</text>`);p.stickers.forEach(s=>svg+=`<text x="${s.left}" y="${s.top}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`);return svg+"</svg>"}
 
 const propertyNames={grid:"Сетка направлений",purusha:"Пуруша-мандала",axis:"Оси направлений",overlay:"Дополнительная картинка",label:"Надпись",sticker:"Метка анализа",correction:"Коррекция",plan:"План квартиры"};
 function showProperties(type){

@@ -16,7 +16,7 @@ window.CORRECTION_LIBRARY = {
     { id: "square", name: "Квадратная" },
     { id: "triangle", name: "Треугольная" }
   ],
-  spiralTurns: [5, 7, 9],
+  spiralQuantities: [1, 5, 7, 9],
   categories: [
     {
       id: "stones",
@@ -40,7 +40,7 @@ window.CORRECTION_LIBRARY = {
       name: "Спирали",
       icon: "spiral",
       items: [
-        { id: "spiral", name: "Спираль", visual: "spiral", material: "copper", shape: "circle", turns: 5, size: 100 }
+        { id: "spiral", name: "Спираль", visual: "spiral", material: "copper", shape: "circle", quantity: 1, size: 100 }
       ]
     },
     {
@@ -70,13 +70,13 @@ window.CORRECTION_LIBRARY = {
       name: "Лингамы",
       icon: "lingam",
       items: [
-        { id: "lingam-copper", name: "Медный лингам", visual: "lingam", color: "#be744f", weight: 100 },
-        { id: "lingam-iron", name: "Железный лингам", visual: "lingam", color: "#606975", weight: 100 },
-        { id: "lingam-lead", name: "Свинцовый лингам", visual: "lingam", color: "#697083", weight: 100 },
-        { id: "lingam-bronze", name: "Бронзовый лингам", visual: "lingam", color: "#947040", weight: 100 },
-        { id: "lingam-silver", name: "Серебряный лингам", visual: "lingam", color: "#b9c4ce", weight: 100 },
-        { id: "lingam-yellow-stone", name: "Лингам из желтого камня", visual: "lingam", color: "#cba64a", weight: 100 },
-        { id: "lingam-crystal", name: "Хрустальный лингам", visual: "lingam", color: "#c4e1eb", weight: 100 }
+        { id: "lingam-copper", name: "Медный лингам", visual: "lingam", color: "#be744f", measurable: false },
+        { id: "lingam-iron", name: "Железный лингам", visual: "lingam", color: "#606975", measurable: false },
+        { id: "lingam-lead", name: "Свинцовый лингам", visual: "lingam", color: "#697083", measurable: false },
+        { id: "lingam-bronze", name: "Бронзовый лингам", visual: "lingam", color: "#947040", measurable: false },
+        { id: "lingam-silver", name: "Серебряный лингам", visual: "lingam", color: "#b9c4ce", measurable: false },
+        { id: "lingam-yellow-stone", name: "Лингам из желтого камня", visual: "lingam", color: "#cba64a", measurable: false },
+        { id: "lingam-crystal", name: "Хрустальный лингам", visual: "lingam", color: "#c4e1eb", measurable: false }
       ]
     },
     {
