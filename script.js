@@ -467,7 +467,6 @@ function correctionTitle(data,def){return (data.caption||"").trim()||def.name}
 function correctionParameterText(data,def){
  if(def.visual==="spiral"){
   let detail=getCorrectionMaterial(data.material).name+", "+correctionShapeName(data.shape)+", "+data.quantity+" шт.";
-  if(data.quantity>1)detail+=", "+correctionArrangementName(data.arrangement).toLowerCase();
   return detail;
  }
  if(isMeasuredCorrection(def)&&data.showWeight)return data.weight+" "+data.unit;
@@ -878,7 +877,7 @@ function includeExportRect(bounds,x,y,width,height,rotation=0){
   bounds.right=Math.max(bounds.right,point.x);bounds.bottom=Math.max(bounds.bottom,point.y);
  });
 }
-function exportArea(p,planFrame){
+function exportArea(p,planFrame,labels=[]){
  const bounds={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
  if(planFrame&&p.planVisible!==false)includeExportRect(bounds,planFrame.left,planFrame.top,planFrame.width,planFrame.height,p.planRotation);
  (p.grids||[]).forEach(g=>{if(g.visible!==false)includeExportRect(bounds,g.left,g.top,g.width,g.height,g.rotation)});
@@ -890,11 +889,84 @@ function exportArea(p,planFrame){
  });
  (p.labels||[]).forEach(l=>{if(l.visible!==false)includeExportRect(bounds,l.left,l.top,Math.max(20,l.text.length*l.fontSize*.62),l.fontSize*1.35,l.rotation)});
  (p.stickers||[]).forEach(s=>{if(s.visible!==false)includeExportRect(bounds,s.left,s.top,s.size,s.size)});
+ labels.forEach(label=>includeExportRect(bounds,label.x,label.y,label.width,label.height,0));
  if(!Number.isFinite(bounds.left))return{left:0,top:0,width:1600,height:1200};
  const padding=42;
  const left=Math.max(0,Math.floor(bounds.left-padding)),top=Math.max(0,Math.floor(bounds.top-padding));
  const right=Math.min(1600,Math.ceil(bounds.right+padding)),bottom=Math.min(1200,Math.ceil(bounds.bottom+padding));
  return{left,top,width:Math.max(1,right-left),height:Math.max(1,bottom-top)};
+}
+function exportTextWidth(text,fontSize){return String(text).length*fontSize*.56}
+function wrapExportLabel(text,maxWidth=168,fontSize=12,maxLines=2){
+ const words=String(text).split(/\s+/).filter(Boolean),lines=[];
+ let line="";
+ words.forEach(word=>{
+  const next=line?line+" "+word:word;
+  if(exportTextWidth(next,fontSize)<=maxWidth||!line)line=next;
+  else{lines.push(line);line=word;}
+ });
+ if(line)lines.push(line);
+ const clipped=lines.slice(0,maxLines);
+ if(lines.length>maxLines){
+  let last=clipped[clipped.length-1]||"";
+  while(last.length>4&&exportTextWidth(last+"...",fontSize)>maxWidth)last=last.slice(0,-1);
+  clipped[clipped.length-1]=last.trim()+"...";
+ }
+ return clipped.length?clipped:[""];
+}
+function rectOverlap(a,b,gap=4){return !(a.x+a.width+gap<=b.x||b.x+b.width+gap<=a.x||a.y+a.height+gap<=b.y||b.y+b.height+gap<=a.y)}
+function estimateExportLabel(text){
+ const fontSize=12,padX=7,padY=5,lineHeight=15,lines=wrapExportLabel(text,168,fontSize,2);
+ const width=Math.min(182,Math.max(44,...lines.map(line=>exportTextWidth(line,fontSize)))+padX*2);
+ const height=lines.length*lineHeight+padY*2;
+ return{fontSize,padX,padY,lineHeight,lines,width,height};
+}
+function placeExportLabel(anchor,metrics,placed){
+ const gap=8,cx=anchor.x+anchor.width/2,cy=anchor.y+anchor.height/2;
+ const candidates=[
+  {x:cx-metrics.width/2,y:anchor.y+anchor.height+gap},
+  {x:cx-metrics.width/2,y:anchor.y-metrics.height-gap},
+  {x:anchor.x+anchor.width+gap,y:cy-metrics.height/2},
+  {x:anchor.x-metrics.width-gap,y:cy-metrics.height/2},
+  {x:anchor.x+anchor.width+gap,y:anchor.y+anchor.height+gap},
+  {x:anchor.x-metrics.width-gap,y:anchor.y+anchor.height+gap},
+  {x:anchor.x+anchor.width+gap,y:anchor.y-metrics.height-gap},
+  {x:anchor.x-metrics.width-gap,y:anchor.y-metrics.height-gap}
+ ];
+ for(let radius=28;radius<=240;radius+=24){
+  [-1,0,1].forEach(dx=>[-1,0,1].forEach(dy=>{
+   if(dx||dy)candidates.push({x:cx-metrics.width/2+dx*radius,y:cy-metrics.height/2+dy*radius});
+  }));
+ }
+ const fits=box=>box.x>=0&&box.y>=0&&box.x+box.width<=1600&&box.y+box.height<=1200;
+ for(const candidate of candidates){
+  const box={...metrics,x:Math.round(candidate.x),y:Math.round(candidate.y)};
+  if(fits(box)&&!placed.some(other=>rectOverlap(box,other)))return box;
+ }
+ const fallback={...metrics,x:Math.max(0,Math.min(1600-metrics.width,Math.round(cx-metrics.width/2))),y:Math.max(0,Math.min(1200-metrics.height,Math.round(anchor.y+anchor.height+gap)))};
+ return fallback;
+}
+function layoutExportCorrectionLabels(p){
+ const placed=[],labels=[];
+ (p.corrections||[]).forEach(o=>{
+  const group=p.correctionGroups[o.category]||{visible:true};
+  if(o.visible===false||!group.visible||o.showCaption===false)return;
+  const def=correctionDefinition(o.category,o.item);
+  if(!def)return;
+  const text=correctionCaptionValue(o,def);
+  const metrics=estimateExportLabel(text);
+  const box=placeExportLabel({x:o.left,y:o.top,width:o.width,height:o.height},metrics,placed);
+  placed.push(box);
+  labels.push({...box,text,anchorX:o.left+o.width/2,anchorY:o.top+o.height/2,opacity:num(o.opacity,100)*num(group.opacity,100)/10000});
+ });
+ return labels;
+}
+function exportLabelSVG(label){
+ const textX=label.x+label.width/2,textY=label.y+label.padY+label.fontSize;
+ const line=label.anchorX<label.x||label.anchorX>label.x+label.width||label.anchorY<label.y||label.anchorY>label.y+label.height
+  ?`<line x1="${label.anchorX}" y1="${label.anchorY}" x2="${label.x+label.width/2}" y2="${label.y+label.height/2}" stroke="#6b6961" stroke-width="1" opacity=".35"/>`:"";
+ const tspans=label.lines.map((lineText,index)=>`<tspan x="${textX}" dy="${index?label.lineHeight:0}">${esc(lineText)}</tspan>`).join("");
+ return `${line}<g opacity="${Math.min(1,Math.max(.25,label.opacity))}"><rect x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="8" fill="#fff" fill-opacity=".9" stroke="#d7d0c6" stroke-width="1"/><text x="${textX}" y="${textY}" text-anchor="middle" font-size="${label.fontSize}" font-weight="600" fill="#3f3d38">${tspans}</text></g>`;
 }
 async function html2canvasLike(){
  const result=await buildSVG(),img=new Image(),url=URL.createObjectURL(new Blob([result.svg],{type:"image/svg+xml"}));
@@ -906,7 +978,8 @@ function esc(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").
 async function buildSVG(){
  const p=collect();
  const frame=p.planImageData&&p.planVisible!==false?await displayedPlanFrame():null;
- const area=exportArea(p,frame);
+ const exportLabels=layoutExportCorrectionLabels(p);
+ const area=exportArea(p,frame,exportLabels);
  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${area.width}" height="${area.height}" viewBox="${area.left} ${area.top} ${area.width} ${area.height}"><rect x="${area.left}" y="${area.top}" width="${area.width}" height="${area.height}" fill="white"/>`;
  if(frame){
   svg+=`<image href="${p.planImageData}" x="${frame.left}" y="${frame.top}" width="${frame.width}" height="${frame.height}" opacity="${p.planOpacity/100}" preserveAspectRatio="none" transform="rotate(${p.planRotation} ${frame.cx} ${frame.cy})"/>`;
@@ -936,12 +1009,12 @@ async function buildSVG(){
   [90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${rot} ${a.left+len/2} ${a.top})"/>`;});
  });
  (p.corrections||[]).forEach(o=>{
-  const group=p.correctionGroups[o.category]||{visible:true,opacity:100};
+ const group=p.correctionGroups[o.category]||{visible:true,opacity:100};
   if(o.visible===false||!group.visible)return;
   const opacity=o.opacity*group.opacity/10000,def=correctionDefinition(o.category,o.item),src=correctionArt(o);
   svg+=`<image href="${src}" x="${o.left}" y="${o.top}" width="${o.width}" height="${o.height}" opacity="${opacity}" transform="rotate(${o.rotation} ${o.left+o.width/2} ${o.top+o.height/2})"/>`;
-  if(o.showCaption!==false)svg+=`<text x="${o.left+o.width/2}" y="${o.top+o.height+14}" text-anchor="middle" font-size="10" fill="#49463f" opacity="${opacity}">${esc(correctionCaptionValue(o,def))}</text>`;
  });
+ exportLabels.forEach(label=>svg+=exportLabelSVG(label));
  p.labels.forEach(l=>{if(l.visible!==false)svg+=`<text x="${l.left}" y="${l.top+l.fontSize}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top+l.fontSize})">${esc(l.text)}</text>`;});
  p.stickers.forEach(s=>{if(s.visible!==false)svg+=`<text x="${s.left}" y="${s.top+s.size*.9}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`;});
  return{svg:svg+"</svg>",width:area.width,height:area.height};
