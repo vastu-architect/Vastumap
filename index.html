@@ -42,6 +42,10 @@
         <button onclick="addTextLabel()">Надпись</button>
         <label class="add-overlay">Картинка<input type="file" accept="image/*" id="overlayInput"></label>
       </div>
+      <div class="layer-bulk-actions">
+        <button onclick="hideAllLayers()">Скрыть все слои</button>
+        <button onclick="showAllLayers()">Показать все</button>
+      </div>
       <div class="layers-list" id="layersList" aria-label="Слои проекта"></div>
       <section class="correction-library">
         <div class="library-head">
@@ -72,6 +76,7 @@
           <span>Совместите план с сеткой и направлениями</span>
         </div>
         <div class="zoom-controls">
+          <button class="focus-action" id="focusModeBtn" onclick="toggleCorrectionFocus()">Фокус: выкл</button>
           <button onclick="zoomAll(-0.1)">-</button>
           <span><span id="zoomTxt">100</span>%</span>
           <button onclick="zoomAll(0.1)">+</button>
@@ -199,6 +204,11 @@
           <label>Форма<select id="correctionShape"></select></label>
           <label>Количество спиралей<select id="correctionQuantity"></select></label>
           <label class="spiral-arrangement" id="spiralArrangementField">Расположение группы<select id="correctionArrangement"></select></label>
+        </div>
+        <div class="correction-variants" id="stoneGroupControls" hidden>
+          <h3>Группа речных камней</h3>
+          <label>Количество камней<select id="correctionStoneQuantity"></select></label>
+          <p class="hint">При растягивании группы увеличивается расстояние между камнями.</p>
         </div>
         <div class="measurement-fields" id="correctionMeasurement">
           <label class="switch-line measurement-toggle"><input type="checkbox" id="correctionShowWeight" checked> Показывать вес на плане</label>

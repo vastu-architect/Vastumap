@@ -17,6 +17,7 @@ window.CORRECTION_LIBRARY = {
     { id: "triangle", name: "Треугольная" }
   ],
   spiralQuantities: [1, 5, 7, 9],
+  stoneGroupQuantities: [1, 3, 4, 5, 7, 9],
   spiralArrangements: [
     { id: "compact", name: "Компактно" },
     { id: "line", name: "В одну линию" }
@@ -31,8 +32,10 @@ window.CORRECTION_LIBRARY = {
         { id: "emerald", name: "Изумруд", visual: "stone", color: "#25845f", weight: 10 },
         { id: "yellow-sapphire", name: "Желтый сапфир", visual: "stone", color: "#d8a538", weight: 10 },
         { id: "blue-sapphire", name: "Синий сапфир", visual: "stone", color: "#345f9e", weight: 10 },
-        { id: "river-yellow", name: "Речной желтый", visual: "pebble", color: "#cfa954", weight: 50 },
-        { id: "river-blue", name: "Речной синий", visual: "pebble", color: "#568fa4", weight: 50 },
+        { id: "diamond", name: "Бриллиант", visual: "stone", color: "#dcecf3", weight: 10 },
+        { id: "rock-crystal", name: "Горный хрусталь", visual: "stone", color: "#c4e1eb", weight: 10 },
+        { id: "river-yellow", name: "Речной желтый", visual: "pebble", color: "#cfa954", weight: 50, groupable: true, quantity: 1, keepRatio: false },
+        { id: "river-blue", name: "Речной синий", visual: "pebble", color: "#568fa4", weight: 50, groupable: true, quantity: 1, keepRatio: false },
         { id: "red-coral", name: "Красный коралл", visual: "coral", color: "#cc503d", weight: 10 },
         { id: "cats-eye", name: "Кошачий глаз (хрисоберил)", visual: "stone", color: "#a8954c", weight: 10 },
         { id: "hessonite", name: "Гессонит", visual: "stone", color: "#a45a38", weight: 10 },
@@ -44,7 +47,7 @@ window.CORRECTION_LIBRARY = {
       name: "Спирали",
       icon: "spiral",
       items: [
-        { id: "spiral", name: "Спираль", visual: "spiral", material: "copper", shape: "circle", quantity: 1, arrangement: "compact", size: 100 }
+        { id: "spiral", name: "Спираль", visual: "spiral", material: "copper", shape: "circle", quantity: 1, arrangement: "compact", size: 100, keepRatio: false }
       ]
     },
     {
@@ -52,8 +55,8 @@ window.CORRECTION_LIBRARY = {
       name: "Проволоки",
       icon: "wire",
       items: [
-        { id: "wire-copper", name: "Медная проволока", visual: "wire", color: "#be744f", size: 150, aspect: 4 },
-        { id: "wire-bronze", name: "Бронзовая проволока", visual: "wire", color: "#947040", size: 150, aspect: 4 }
+        { id: "wire-copper", name: "Медная проволока", visual: "wire", color: "#be744f", size: 220, aspect: 7, keepRatio: false },
+        { id: "wire-bronze", name: "Бронзовая проволока", visual: "wire", color: "#947040", size: 220, aspect: 7, keepRatio: false }
       ]
     },
     {
@@ -100,8 +103,24 @@ window.CORRECTION_LIBRARY = {
       items: [
         { id: "film-bronze", name: "Бронзовая пленка", visual: "film", color: "#a6764c", measurable: false, aspect: 1.6 },
         { id: "film-yellow", name: "Желтая пленка", visual: "film", color: "#e0ba52", measurable: false, aspect: 1.6 },
+        { id: "film-blue", name: "Голубая пленка", visual: "film", color: "#7fc9dc", measurable: false, aspect: 1.6 },
         { id: "curtains-dense", name: "Плотные шторы", visual: "curtain", color: "#6e7484", measurable: false, aspect: 1.4 }
       ]
+    },
+    {
+      id: "toilet-corrections",
+      name: "Коррекции туалетов",
+      icon: "toilet",
+      items: [
+        { id: "toilet-inflow", name: "Туалет: зоны притока", visual: "toilet-correction", color: "#75c7ca", accent: "#6b837f", measurable: false, size: 150, aspect: 0.9, keepRatio: false },
+        { id: "toilet-outflow", name: "Туалет: зоны оттока", visual: "toilet-triangles", color: "#b3927d", accent: "#e07b39", measurable: false, size: 150, aspect: 0.9, keepRatio: false }
+      ]
+    },
+    {
+      id: "brahmasthan-corrections",
+      name: "Брахмастан",
+      icon: "brahma",
+      items: []
     },
     {
       id: "interior",

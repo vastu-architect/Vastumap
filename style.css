@@ -207,6 +207,25 @@ input[type=number],input:not([type]),#labelText,select{
   position:relative;
 }
 
+.layer-bulk-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+  margin-top:7px;
+}
+
+.layer-bulk-actions button,.focus-action{
+  border:1px solid var(--line);
+  background:#fff;
+  color:#57534b;
+  border-radius:10px;
+  font-size:11px;
+  font-weight:560;
+}
+
+.layer-bulk-actions button{min-height:30px}
+.layer-bulk-actions button:hover,.focus-action:hover{border-color:#b8ccd7;color:var(--blue)}
+
 .layers-list{
   display:flex;
   flex-direction:column;
@@ -266,6 +285,12 @@ input[type=number],input:not([type]),#labelText,select{
 
 .layer-visibility:hover{border-color:#b8ccd7;color:var(--blue)}
 .layer-visibility.off{color:#aea89c;background:#f6f4f0;opacity:.7}
+
+.focus-action{
+  min-width:94px;
+  height:34px;
+  padding:0 10px;
+}
 
 .correction-library{
   display:flex;
@@ -764,7 +789,8 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .selected{outline:3px solid rgba(65,111,145,.85);outline-offset:3px}
-.vastu-grid.locked,.purusha-grid.locked,.overlay-wrap.locked,.correction-object.locked{outline:3px solid #7f7a71;cursor:not-allowed}
+.vastu-grid.locked,.purusha-grid.locked,.overlay-wrap.locked,.correction-object.locked{cursor:not-allowed}
+.vastu-grid.locked.selected,.purusha-grid.locked.selected,.overlay-wrap.locked.selected,.correction-object.locked.selected{outline:3px solid #7f7a71}
 
 .cell{
   border:1px solid rgba(56,62,61,.43);
@@ -813,10 +839,10 @@ input[type=number],input:not([type]),#labelText,select{
 .ne{right:-9px;top:-9px;cursor:nesw-resize}
 .sw{left:-9px;bottom:-9px;cursor:nesw-resize}
 .se{right:-9px;bottom:-9px;cursor:nwse-resize}
-.handle.n,.purusha-handle.n{left:50%;top:-9px;transform:translateX(-50%);cursor:ns-resize}
-.handle.e,.purusha-handle.e{right:-9px;top:50%;transform:translateY(-50%);cursor:ew-resize}
-.handle.s,.purusha-handle.s{left:50%;bottom:-9px;transform:translateX(-50%);cursor:ns-resize}
-.handle.w,.purusha-handle.w{left:-9px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+.handle.n,.purusha-handle.n,.correction-handle.n{left:50%;top:-9px;transform:translateX(-50%);cursor:ns-resize}
+.handle.e,.purusha-handle.e,.correction-handle.e{right:-9px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+.handle.s,.purusha-handle.s,.correction-handle.s{left:50%;bottom:-9px;transform:translateX(-50%);cursor:ns-resize}
+.handle.w,.purusha-handle.w,.correction-handle.w{left:-9px;top:50%;transform:translateY(-50%);cursor:ew-resize}
 
 .rotate-handle{
   position:absolute;
@@ -878,6 +904,25 @@ input[type=number],input:not([type]),#labelText,select{
   display:block;
   pointer-events:none;
   object-fit:fill;
+  position:relative;
+  z-index:2;
+}
+
+.correction-link{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  pointer-events:none;
+  z-index:1;
+}
+
+.correction-link line{
+  stroke:#6b6961;
+  stroke-width:1.2;
+  stroke-dasharray:3 3;
+  opacity:.45;
 }
 
 .correction-caption{
@@ -892,9 +937,12 @@ input[type=number],input:not([type]),#labelText,select{
   color:#49463f;
   font-size:10px;
   white-space:nowrap;
-  pointer-events:none;
+  pointer-events:auto;
+  cursor:grab;
+  z-index:4;
   box-shadow:0 1px 6px rgba(36,39,40,.09);
 }
+.correction-caption:active{cursor:grabbing}
 .correction-caption[hidden]{display:none !important}
 
 .correction-handle{
@@ -920,6 +968,26 @@ input[type=number],input:not([type]),#labelText,select{
   border:2px solid #fff;
   cursor:grab;
   box-shadow:0 1px 8px rgba(0,0,0,.2);
+}
+
+.handle,.rotate-handle,.purusha-handle,.overlay-handle,.correction-handle,.correction-rotate-handle{
+  display:none;
+}
+
+.selected .handle,.selected .rotate-handle,.selected .purusha-handle,.selected .overlay-handle,.selected .correction-handle,.selected .correction-rotate-handle{
+  display:block;
+}
+
+body.correction-focus .correction-object:not(.selected){
+  opacity:.38 !important;
+}
+
+body.correction-focus .correction-object:not(.selected) .correction-caption{
+  display:none !important;
+}
+
+body.correction-focus .correction-object:not(.selected) .correction-link{
+  display:none !important;
 }
 
 .text-label{
