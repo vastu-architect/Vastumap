@@ -195,6 +195,7 @@
             <span id="correctionCategoryName">Категория</span>
           </div>
         </div>
+        <button class="full-action duplicate-action correction-duplicate-action" onclick="duplicateCorrection()">Дублировать объект</button>
         <label class="switch-line"><input type="checkbox" id="lockCorrection"> Зафиксировать объект</label>
         <div class="caption-settings">
           <label class="switch-line"><input type="checkbox" id="correctionShowCaption" checked> Показывать подпись объекта</label>
@@ -237,7 +238,6 @@
         </div>
         <div class="value-row"><label>Быстрый размер</label><span class="value"><span id="correctionSizeTxt">80</span> px</span></div>
         <input type="range" min="8" max="600" value="80" id="correctionSize">
-        <button class="full-action duplicate-action" onclick="duplicateCorrection()">Дублировать объект</button>
       </section>
 
       <section class="property-group" data-properties="plan">

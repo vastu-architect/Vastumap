@@ -769,6 +769,11 @@ input[type=number],input:not([type]),#labelText,select{
 .measurement-values select{margin:0}
 .dimension-inputs input,.measurement-values input{width:100%}
 .duplicate-action{margin-top:17px}
+.correction-duplicate-action{
+  min-height:34px;
+  margin:0 0 2px;
+  font-size:12px;
+}
 
 .vastu-grid{
   position:absolute;
