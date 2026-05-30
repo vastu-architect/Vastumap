@@ -765,6 +765,12 @@ function mergeCorrectionCaptionAtDrop(source){
   });
  if(candidates.length)mergeCorrectionCaptions(source,candidates[0].closest(".correction-object"));
 }
+function setCorrectionCaptionLineVisible(el,visible){
+ const link=el.querySelector(".correction-link");
+ if(!link)return;
+ link.hidden=!visible;
+ link.style.display=visible?"":"none";
+}
 function updateSingleCorrectionCaptionPosition(el){
  const caption=el.querySelector(".correction-caption"),link=el.querySelector(".correction-link"),line=link&&link.querySelector("line");
  if(!caption||!link||!line)return;
@@ -779,14 +785,14 @@ function updateSingleCorrectionCaptionPosition(el){
  line.setAttribute("y1",height/2);
  line.setAttribute("x2",width/2+dx);
  line.setAttribute("y2",height+7+dy+(caption.offsetHeight||22)/2);
- link.hidden=caption.hidden;
+ setCorrectionCaptionLineVisible(el,!caption.hidden);
 }
 function refreshCorrectionCaptionGroup(el){
  const members=correctionCaptionGroupMembers(el);
  const visible=members.filter(correctionCaptionIsVisible);
  let host=visible.find(member=>member.dataset.captionHost==="true")||visible[0]||null;
  if(!host){
-  members.forEach(member=>{member.querySelector(".correction-caption").hidden=true;member.querySelector(".correction-link").hidden=true;});
+  members.forEach(member=>{member.querySelector(".correction-caption").hidden=true;setCorrectionCaptionLineVisible(member,false);});
   return;
  }
  members.forEach(member=>member.dataset.captionHost=member===host?"true":"false");
@@ -800,7 +806,7 @@ function refreshCorrectionCaptionGroup(el){
   caption.style.transform=`translateX(calc(-50% + ${dx}px)) translateY(${dy}px) rotate(${captionRotation}deg)`;
   caption.hidden=member!==host;
   line.setAttribute("x1",width/2);line.setAttribute("y1",height/2);line.setAttribute("x2",local.x);line.setAttribute("y2",local.y);
-  link.hidden=!correctionCaptionIsVisible(member);
+  setCorrectionCaptionLineVisible(member,correctionCaptionIsVisible(member));
  });
 }
 function refreshAllCorrectionCaptionGroups(){

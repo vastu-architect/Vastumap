@@ -924,6 +924,7 @@ input[type=number],input:not([type]),#labelText,select{
   stroke-dasharray:3 3;
   opacity:.45;
 }
+.correction-link[hidden]{display:none !important}
 
 .correction-caption{
   position:absolute;
