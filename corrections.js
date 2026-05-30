@@ -112,8 +112,8 @@ window.CORRECTION_LIBRARY = {
       name: "Коррекции туалетов",
       icon: "toilet",
       items: [
-        { id: "toilet-inflow", name: "Туалет: зоны притока", visual: "toilet-correction", color: "#75c7ca", accent: "#6b837f", measurable: false, size: 150, aspect: 0.9, keepRatio: false },
-        { id: "toilet-outflow", name: "Туалет: зоны оттока", visual: "toilet-triangles", color: "#b3927d", accent: "#e07b39", measurable: false, size: 150, aspect: 0.9, keepRatio: false }
+        { id: "cosmic-necklace-triangle", name: "Космическое ожерелье: треугольник", caption: "Космическое ожерелье", visual: "cosmic-necklace-triangle", color: "#b36e00", accent: "#ef4b3e", measurable: false, size: 115 },
+        { id: "cosmic-necklace-pair", name: "Космическое ожерелье: два камня", caption: "Космическое ожерелье", visual: "cosmic-necklace-pair", color: "#62d5c8", accent: "#6f94e8", measurable: false, size: 105, aspect: 0.72 }
       ]
     },
     {
@@ -135,6 +135,12 @@ window.CORRECTION_LIBRARY = {
         { id: "wardrobe", name: "Гардероб", visual: "wardrobe", color: "#9b7455", measurable: false, size: 95, aspect: 0.8 },
         { id: "sofa", name: "Диван", visual: "sofa", color: "#7c8370", measurable: false, size: 130, aspect: 1.8 },
         { id: "table", name: "Стол", visual: "table", color: "#a87852", measurable: false, size: 100 },
+        { id: "table-rect", name: "Стол прямоугольный", visual: "table-rect", color: "#a87852", measurable: false, size: 130, aspect: 1.8, keepRatio: false },
+        { id: "window", name: "Окно", visual: "window", color: "#73a9c4", measurable: false, size: 130, aspect: 3, keepRatio: false },
+        { id: "shower", name: "Душ", visual: "shower", color: "#78aebe", measurable: false, size: 95 },
+        { id: "fridge", name: "Холодильник", visual: "fridge", color: "#83939b", measurable: false, size: 105, aspect: 0.72 },
+        { id: "washer", name: "Стиральная машина", visual: "washer", color: "#7596a3", measurable: false, size: 90 },
+        { id: "cabinet", name: "Шкаф", visual: "cabinet", color: "#9b7455", measurable: false, size: 105, aspect: 0.78 },
         { id: "entrance-door", name: "Входная дверь", visual: "door", color: "#866345", measurable: false, size: 105, aspect: 1.3 }
       ]
     },

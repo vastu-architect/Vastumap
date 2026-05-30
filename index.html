@@ -24,6 +24,7 @@
       <button class="icon-action" title="Отмена" onclick="undoLast()">&#8630;</button>
       <button class="icon-action" title="Повтор" onclick="redoLast()">&#8631;</button>
       <span class="divider"></span>
+      <button class="action" onclick="showExportPreview()">Предпросмотр</button>
       <button class="action" onclick="exportPDF()">Экспорт PDF</button>
       <button class="action dark" onclick="exportPNG()">Экспорт PNG</button>
     </nav>
@@ -174,6 +175,7 @@
         <input type="range" min="10" max="80" value="22" id="fontSize">
         <div class="value-row"><label>Поворот</label><span class="value"><span id="labelDeg">0</span>&deg;</span></div>
         <input type="range" min="0" max="360" value="0" id="labelRot">
+        <button class="full-action duplicate-action" onclick="duplicateTextLabel()">Дублировать надпись</button>
       </section>
 
       <section class="property-group" data-properties="sticker">
@@ -197,6 +199,8 @@
         <div class="caption-settings">
           <label class="switch-line"><input type="checkbox" id="correctionShowCaption" checked> Показывать подпись объекта</label>
           <label>Текст подписи<input type="text" id="correctionCaptionText" placeholder="Название объекта"></label>
+          <div class="value-row"><label>Поворот подписи</label><span class="value"><span id="correctionCaptionRotTxt">0</span>&deg;</span></div>
+          <div class="step-control"><button onclick="stepCorrectionCaptionRot(-1)">-1&deg;</button><input type="number" min="0" max="360" value="0" id="correctionCaptionRot"><button onclick="stepCorrectionCaptionRot(1)">+1&deg;</button></div>
         </div>
         <div class="correction-variants" id="spiralControls">
           <h3>Параметры спирали</h3>
@@ -245,6 +249,27 @@
       </section>
     </aside>
   </main>
+  <div class="preview-modal" id="previewModal" hidden>
+    <div class="preview-backdrop" onclick="closeExportPreview()"></div>
+    <section class="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <header class="preview-head">
+        <div>
+          <small>Предварительный просмотр</small>
+          <h2 id="previewTitle">Так будет выглядеть сохраненный план</h2>
+        </div>
+        <button class="preview-close" onclick="closeExportPreview()" aria-label="Закрыть">&times;</button>
+      </header>
+      <div class="preview-frame">
+        <span id="previewLoading">Подготавливаю изображение...</span>
+        <img id="previewImage" alt="Предварительный просмотр сохраненного плана">
+      </div>
+      <footer class="preview-actions">
+        <button class="action" onclick="closeExportPreview()">Закрыть</button>
+        <button class="action" onclick="exportPDF()">Сохранить PDF</button>
+        <button class="action dark" onclick="exportPNG()">Сохранить PNG</button>
+      </footer>
+    </section>
+  </div>
   <script src="corrections.js" defer></script>
   <script src="script.js" defer></script>
 </body>

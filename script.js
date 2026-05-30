@@ -1,4 +1,4 @@
-let sel=null,selType="",gridCounter=0,labelCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false;
+let sel=null,selType="",gridCounter=0,labelCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,captionGroupCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false,projectBaseName="vastu-project",exportBaseName="vastu-map";
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
 plan.dataset.visible="true";
 const names=["Северо-Запад","Север","Северо-Восток","Запад","Брахмастан","Восток","Юго-Запад","Юг","Юго-Восток"];
@@ -14,6 +14,7 @@ function setLayerVisibility(el,type,visible){
  pushHistory();
  el.dataset.visible=visible?"true":"false";
  applyLayerVisibility(el,type);
+ if(type==="correction"||el.classList?.contains("correction-object"))refreshAllCorrectionCaptionGroups();
  if(!visible&&sel===el)clearSel();else refreshLayers();
 }
 function projectLayerItems(){
@@ -33,9 +34,10 @@ function setAllLayersVisibility(visible){
  if(visible)Object.values(correctionGroups).forEach(group=>group.visible=true);
  projectLayerItems().forEach(layer=>{
   if(!layer.el)return;
-  layer.el.dataset.visible=visible?"true":"false";
+ layer.el.dataset.visible=visible?"true":"false";
   applyLayerVisibility(layer.el,layer.type);
  });
+ refreshAllCorrectionCaptionGroups();
  if(visible)renderCorrectionLibrary(correctionSearch.value);
  if(!visible)clearSel();else refreshLayers();
 }
@@ -300,7 +302,7 @@ if(drag.type=="purusha-resize"){
  drag.el.dataset.height=Math.round(newH);
  if(drag.el===sel)updPurushaPanel();
 }if(drag.type=="rot"){if(drag.el.dataset.locked==="true")return;let deg=Math.round(nd(Math.atan2(p.y-drag.cy,p.x-drag.cx)*180/Math.PI+90));drag.el.dataset.rot=deg;drag.el.style.transform=`rotate(${deg}deg)`;if(drag.el===sel)updGridPanel()}}
-function stop(){drag=null;document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",stop);document.removeEventListener("touchmove",move);document.removeEventListener("touchend",stop)}
+function stop(){const finished=drag;drag=null;document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",stop);document.removeEventListener("touchmove",move);document.removeEventListener("touchend",stop);if(finished?.type==="correction-caption")mergeCorrectionCaptionAtDrop(finished.el)}
 
 const PURUSHA_GRID_SRC = "purusha-grid.jpg";
 const PURUSHA_DEFAULT_WIDTH = 520;
@@ -519,27 +521,22 @@ function initCorrectionGroups(saved={}){
  });
 }
 function svgData(svg){return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)}
-function correctionSpiralPoints(shape){
- const points=[];
- const loops=4;
- const total=loops*32;
- for(let i=0;i<=total;i++){
-  const p=i/total,angle=p*loops*Math.PI*2-Math.PI/2,radius=5+p*40;
-  let x=50+Math.cos(angle)*radius,y=50+Math.sin(angle)*radius;
-  if(shape==="square"){
-   const m=Math.max(Math.abs(x-50),Math.abs(y-50))||1;
-   x=50+(x-50)*radius/m;
-   y=50+(y-50)*radius/m;
-  }else if(shape==="triangle"){
-   const sector=(angle+Math.PI/2)/(Math.PI*2/3);
-   const phase=((sector%1)+1)%1;
-   const edge=.62+.38*Math.abs(phase-.5)*2;
-   x=50+Math.cos(angle)*radius*edge;
-   y=50+Math.sin(angle)*radius*edge;
-  }
-  points.push(x.toFixed(1)+","+y.toFixed(1));
+function correctionSpiralPath(shape){
+ if(shape==="square"){
+  return "M92 94V6H6V94H77V21H21V79H63V36H36V65H52V49H47";
  }
- return points.join(" ");
+ if(shape==="triangle"){
+  return "M4 94L50 6L96 94H14L50 25L85 86H27L50 43L73 78H39L50 58L62 72H50";
+ }
+ const points=[];
+ const turns=4;
+ const total=turns*44;
+ const start=Math.PI/3;
+ for(let i=0;i<=total;i++){
+  const p=i/total,angle=start+p*turns*Math.PI*2,radius=3+p*44;
+  points.push((50+Math.cos(angle)*radius).toFixed(1)+","+(50+Math.sin(angle)*radius).toFixed(1));
+ }
+ return "M"+points.join("L");
 }
 function correctionSpiralLayout(quantity,arrangement="compact"){
  if(arrangement==="line"&&quantity>1){
@@ -552,9 +549,9 @@ function correctionSpiralLayout(quantity,arrangement="compact"){
  return [{x:5,y:5,s:.9}];
 }
 function correctionSpiralArt(data,def,color){
- const points=correctionSpiralPoints(data.shape||def.shape);
+ const path=correctionSpiralPath(data.shape||def.shape);
  const quantity=num(data.quantity,num(data.turns,def.quantity||1));
- return correctionSpiralLayout(quantity,data.arrangement||def.arrangement||"compact").map(item=>`<g transform="translate(${item.x} ${item.y}) scale(${item.s})"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="50" r="3" fill="${color}"/></g>`).join("");
+ return correctionSpiralLayout(quantity,data.arrangement||def.arrangement||"compact").map(item=>`<g transform="translate(${item.x} ${item.y}) scale(${item.s})"><path d="${path}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="miter"/><path d="${path}" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="miter"/></g>`).join("");
 }
 function correctionGroupLayout(quantity){
  const q=Math.max(1,num(quantity,1));
@@ -630,6 +627,12 @@ function correctionArt(data){
  if(def.visual==="wardrobe") body=`<rect x="18" y="8" width="64" height="84" rx="3" fill="${color}" opacity=".3" stroke="${color}" stroke-width="4"/><path d="M50 10V90M25 19H44M56 19H75" stroke="${color}" stroke-width="2"/><circle cx="45" cy="51" r="3" fill="${color}"/><circle cx="55" cy="51" r="3" fill="${color}"/>`;
  if(def.visual==="sofa") body=`<rect x="9" y="22" width="82" height="57" rx="13" fill="${color}" opacity=".38" stroke="${color}" stroke-width="3"/><rect x="18" y="30" width="64" height="40" rx="9" fill="${color}" opacity=".72"/><path d="M18 52H82M50 31V69" stroke="${light}" stroke-opacity=".5" stroke-width="2"/><rect x="9" y="33" width="10" height="35" rx="4" fill="${color}"/><rect x="81" y="33" width="10" height="35" rx="4" fill="${color}"/>`;
  if(def.visual==="table") body=`<circle cx="50" cy="50" r="27" fill="${color}" opacity=".7" stroke="${color}" stroke-width="3"/><rect x="40" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".4"/><rect x="40" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".4"/><rect x="8" y="40" width="13" height="20" rx="3" fill="${color}" opacity=".4"/><rect x="79" y="40" width="13" height="20" rx="3" fill="${color}" opacity=".4"/>`;
+ if(def.visual==="table-rect") body=`<rect x="15" y="25" width="70" height="50" rx="5" fill="${color}" opacity=".72" stroke="${color}" stroke-width="3"/><rect x="24" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><rect x="56" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><rect x="24" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><rect x="56" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><path d="M28 31H72M28 69H72" stroke="#fff" stroke-opacity=".38" stroke-width="2"/>`;
+ if(def.visual==="window") body=`<rect x="5" y="30" width="90" height="40" rx="3" fill="#eaf6fb" stroke="${color}" stroke-width="4"/><path d="M50 31V69M9 50H91M14 36L42 64M58 36L86 64" stroke="${color}" stroke-width="2" opacity=".72"/>`;
+ if(def.visual==="shower") body=`<rect x="12" y="12" width="76" height="76" rx="10" fill="${color}" opacity=".2" stroke="${color}" stroke-width="4"/><circle cx="50" cy="50" r="24" fill="#fff" fill-opacity=".45" stroke="${color}" stroke-width="2"/><circle cx="50" cy="50" r="5" fill="${color}"/><path d="M18 82L82 18M18 18L82 82" stroke="${color}" stroke-width="2" opacity=".58"/>`;
+ if(def.visual==="fridge") body=`<rect x="24" y="6" width="52" height="88" rx="5" fill="${color}" opacity=".25" stroke="${color}" stroke-width="4"/><path d="M25 39H75M66 17V32M66 50V83" stroke="${color}" stroke-width="4" stroke-linecap="round"/><path d="M34 16H56M34 51H56" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>`;
+ if(def.visual==="washer") body=`<rect x="10" y="10" width="80" height="80" rx="7" fill="${color}" opacity=".22" stroke="${color}" stroke-width="4"/><circle cx="50" cy="56" r="25" fill="#eaf4f7" stroke="${color}" stroke-width="4"/><circle cx="50" cy="56" r="16" fill="${color}" opacity=".28"/><circle cx="25" cy="24" r="4" fill="${color}"/><path d="M39 24H76" stroke="${color}" stroke-width="4" stroke-linecap="round"/>`;
+ if(def.visual==="cabinet") body=`<rect x="19" y="7" width="62" height="86" rx="3" fill="${color}" opacity=".32" stroke="${color}" stroke-width="4"/><path d="M50 9V91M25 24H44M56 24H75M25 75H44M56 75H75" stroke="${color}" stroke-width="2"/><circle cx="44" cy="51" r="3" fill="${color}"/><circle cx="56" cy="51" r="3" fill="${color}"/>`;
  if(def.visual==="door") body=`<path d="M12 85H88M16 85V19H55" fill="none" stroke="${dark}" stroke-width="5"/><path d="M16 20H75V84H16Z" fill="${color}" opacity=".42" stroke="${color}" stroke-width="3"/><path d="M16 84A59 59 0 0 0 75 25" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="4 3"/><circle cx="67" cy="55" r="3" fill="${dark}"/>`;
  if(def.visual==="powder") body=`<path d="M16 73C17 46 33 29 51 28C69 27 85 44 86 73Z" fill="${color}"/><ellipse cx="51" cy="73" rx="36" ry="9" fill="#c98725"/><circle cx="39" cy="42" r="3" fill="#f3ce63"/><circle cx="59" cy="47" r="2" fill="#f3ce63"/>`;
  if(def.visual==="plant") body=`<path d="M50 87V33M48 51C26 47 21 27 22 20C40 19 51 30 50 47M51 60C73 57 80 39 79 31C60 29 50 41 50 57" fill="${color}" stroke="${color}" stroke-width="4"/><path d="M31 85H69L64 96H36Z" fill="#b7784b"/>`;
@@ -638,6 +641,8 @@ function correctionArt(data){
  if(def.visual==="bowl") body=`<path d="M13 44C17 76 32 87 50 87C68 87 83 76 87 44Z" fill="${color}" opacity=".6" stroke="#81afbd" stroke-width="3"/><ellipse cx="50" cy="43" rx="37" ry="9" fill="#dff3f6" stroke="#81afbd" stroke-width="3"/>`;
  if(def.visual==="yantra") body=`<rect x="12" y="12" width="76" height="76" fill="#fbf1cd" stroke="${color}" stroke-width="3"/><circle cx="50" cy="50" r="29" fill="none" stroke="${color}" stroke-width="2"/><path d="M50 20L75 68H25ZM50 80L25 33H75Z" fill="none" stroke="${color}" stroke-width="3"/><circle cx="50" cy="50" r="5" fill="${color}"/>`;
  if(def.visual==="mirror") body=`<defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".35" stop-color="${color}"/><stop offset=".7" stop-color="#effbff"/></linearGradient></defs><ellipse cx="50" cy="47" rx="33" ry="40" fill="url(#g)" stroke="#a58d63" stroke-width="5"/><path d="M40 87H60V96H40Z" fill="#a58d63"/><path d="M34 31L58 17" stroke="#fff" stroke-width="5" opacity=".75"/>`;
+ if(def.visual==="cosmic-necklace-triangle") body=`<path d="M50 5L95 91H5Z" fill="${color}"/><circle cx="50" cy="61" r="14" fill="${def.accent}"/>`;
+ if(def.visual==="cosmic-necklace-pair") body=`<circle cx="50" cy="34" r="27" fill="${color}"/><circle cx="50" cy="70" r="27" fill="${def.accent}"/>`;
  if(def.visual==="toilet-correction") body=correctionToiletCorrectionArt(data,def,color);
  if(def.visual==="toilet-triangles") body=correctionToiletTrianglesArt(data,def,color);
  if(def.visual==="brahmasthan-grid") body=correctionBrahmasthanArt(data,def,color);
@@ -646,19 +651,128 @@ function correctionArt(data){
 }
 function isMeasuredCorrection(def){return def.measurable!==false&&def.weight!==undefined}
 function correctionState(el){
- return {category:el.dataset.category,item:el.dataset.item,left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,80),height:num(el.dataset.height,80),rotation:num(el.dataset.rotation,0),opacity:num(el.dataset.opacity,100),locked:el.dataset.locked||"false",visible:isLayerVisible(el),keepRatio:el.dataset.keepRatio!=="false",weight:num(el.dataset.weight,0),unit:el.dataset.unit||"г",showWeight:el.dataset.showWeight!=="false",showCaption:el.dataset.showCaption!=="false",caption:el.dataset.caption||"",captionDx:num(el.dataset.captionDx,0),captionDy:num(el.dataset.captionDy,0),material:el.dataset.material||"",shape:el.dataset.shape||"",quantity:num(el.dataset.quantity,1),arrangement:el.dataset.arrangement||"compact"};
+ return {category:el.dataset.category,item:el.dataset.item,left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,80),height:num(el.dataset.height,80),rotation:num(el.dataset.rotation,0),opacity:num(el.dataset.opacity,100),locked:el.dataset.locked||"false",visible:isLayerVisible(el),keepRatio:el.dataset.keepRatio!=="false",weight:num(el.dataset.weight,0),unit:el.dataset.unit||"г",showWeight:el.dataset.showWeight!=="false",showCaption:el.dataset.showCaption!=="false",caption:el.dataset.caption||"",captionDx:num(el.dataset.captionDx,0),captionDy:num(el.dataset.captionDy,0),captionRotation:num(el.dataset.captionRotation,0),captionGroup:el.dataset.captionGroup||"",captionHost:el.dataset.captionHost==="true",captionTargetX:num(el.dataset.captionTargetX,null),captionTargetY:num(el.dataset.captionTargetY,null),material:el.dataset.material||"",shape:el.dataset.shape||"",quantity:num(el.dataset.quantity,1),arrangement:el.dataset.arrangement||"compact"};
 }
 function applyCorrectionGroup(el){
  const group=correctionGroups[el.dataset.category]||{visible:true,opacity:100};
  el.hidden=!isLayerVisible(el)||!group.visible;
  el.style.opacity=(num(el.dataset.opacity,100)*num(group.opacity,100)/10000).toFixed(3);
 }
-function updateCorrectionCaptionPosition(el){
+function correctionCaptionGroupMembers(el){
+ const group=el.dataset.captionGroup;
+ if(!group)return[el];
+ return[...document.querySelectorAll(".correction-object")].filter(item=>item.dataset.captionGroup===group);
+}
+function correctionCaptionIsVisible(el){
+ const group=correctionGroups[el.dataset.category]||{visible:true};
+ return el.dataset.showCaption!=="false"&&isLayerVisible(el)&&group.visible!==false;
+}
+function correctionLocalToWorld(el,x,y){
+ const width=num(el.dataset.width,el.offsetWidth||80),height=num(el.dataset.height,el.offsetHeight||80);
+ const cx=parseFloat(el.style.left)+width/2,cy=parseFloat(el.style.top)+height/2,angle=num(el.dataset.rotation,0)*Math.PI/180;
+ const dx=x-width/2,dy=y-height/2;
+ return{x:cx+dx*Math.cos(angle)-dy*Math.sin(angle),y:cy+dx*Math.sin(angle)+dy*Math.cos(angle)};
+}
+function correctionWorldToLocal(el,x,y){
+ const width=num(el.dataset.width,el.offsetWidth||80),height=num(el.dataset.height,el.offsetHeight||80);
+ const cx=parseFloat(el.style.left)+width/2,cy=parseFloat(el.style.top)+height/2,angle=-num(el.dataset.rotation,0)*Math.PI/180;
+ const dx=x-cx,dy=y-cy;
+ return{x:width/2+dx*Math.cos(angle)-dy*Math.sin(angle),y:height/2+dx*Math.sin(angle)+dy*Math.cos(angle)};
+}
+function correctionCaptionWorldCenter(el){
+ const caption=el.querySelector(".correction-caption");
+ const width=num(el.dataset.width,el.offsetWidth||80),height=num(el.dataset.height,el.offsetHeight||80);
+ return correctionLocalToWorld(el,width/2+num(el.dataset.captionDx,0),height+7+num(el.dataset.captionDy,0)+(caption?.offsetHeight||22)/2);
+}
+function correctionCaptionGroupTarget(members,host){
+ const x=num(host.dataset.captionTargetX,null),y=num(host.dataset.captionTargetY,null);
+ if(x!==null&&y!==null)return{x,y};
+ const target=correctionCaptionWorldCenter(host);
+ members.forEach(member=>{member.dataset.captionTargetX=target.x;member.dataset.captionTargetY=target.y;});
+ return target;
+}
+function setCorrectionCaptionGroupTarget(members,target){
+ members.forEach(member=>{member.dataset.captionTargetX=target.x;member.dataset.captionTargetY=target.y;});
+}
+function clearCorrectionCaptionGroupData(el){
+ delete el.dataset.captionGroup;
+ delete el.dataset.captionHost;
+ delete el.dataset.captionTargetX;
+ delete el.dataset.captionTargetY;
+}
+function setIndependentCorrectionCaptionTarget(el,target){
+ const caption=el.querySelector(".correction-caption");
+ const width=num(el.dataset.width,el.offsetWidth||80),height=num(el.dataset.height,el.offsetHeight||80);
+ const local=correctionWorldToLocal(el,target.x,target.y);
+ el.dataset.captionDx=Math.round(local.x-width/2);
+ el.dataset.captionDy=Math.round(local.y-height-7-(caption?.offsetHeight||22)/2);
+}
+function detachCorrectionCaption(el){
+ if(!el.dataset.captionGroup)return;
+ const members=correctionCaptionGroupMembers(el);
+ const host=members.find(member=>member.dataset.captionHost==="true")||members[0]||el;
+ const target=correctionCaptionGroupTarget(members,host);
+ clearCorrectionCaptionGroupData(el);
+ setIndependentCorrectionCaptionTarget(el,target);
+ const remaining=members.filter(member=>member!==el);
+ if(remaining.length===1){
+  clearCorrectionCaptionGroupData(remaining[0]);
+  setIndependentCorrectionCaptionTarget(remaining[0],target);
+  updateSingleCorrectionCaptionPosition(remaining[0]);
+ }else if(remaining.length>1){
+  refreshCorrectionCaptionGroup(remaining[0]);
+ }
+ updateSingleCorrectionCaptionPosition(el);
+}
+function ensureCorrectionCaptionGroupConsistency(el){
+ if(!el.dataset.captionGroup)return;
+ const text=el.querySelector(".correction-caption")?.innerText.trim()||"";
+ const mismatch=correctionCaptionGroupMembers(el).some(member=>member!==el&&(member.querySelector(".correction-caption")?.innerText.trim()||"")!==text);
+ if(mismatch)detachCorrectionCaption(el);
+}
+function mergeCorrectionCaptions(source,target){
+ if(!source||!target||source===target)return;
+ const sourceText=source.querySelector(".correction-caption")?.innerText.trim()||"";
+ const targetText=target.querySelector(".correction-caption")?.innerText.trim()||"";
+ if(!sourceText||sourceText!==targetText)return;
+ const sourceMembers=correctionCaptionGroupMembers(source),targetMembers=correctionCaptionGroupMembers(target);
+ if(source.dataset.captionGroup&&source.dataset.captionGroup===target.dataset.captionGroup)return;
+ const targetHost=targetMembers.find(member=>member.dataset.captionHost==="true"&&correctionCaptionIsVisible(member))||targetMembers.find(correctionCaptionIsVisible)||target;
+ const targetPoint=target.dataset.captionGroup?correctionCaptionGroupTarget(targetMembers,targetHost):correctionCaptionWorldCenter(target);
+ const group=target.dataset.captionGroup||source.dataset.captionGroup||"caption-"+Date.now()+"-"+(++captionGroupCounter);
+ const members=[...new Set([...sourceMembers,...targetMembers])];
+ members.forEach(member=>{
+  member.dataset.captionGroup=group;
+  member.dataset.captionHost=member===targetHost?"true":"false";
+ });
+ setCorrectionCaptionGroupTarget(members,targetPoint);
+ refreshCorrectionCaptionGroup(targetHost);
+}
+function correctionCaptionRectsOverlap(a,b,gap=10){
+ return !(a.right+gap<b.left||b.right+gap<a.left||a.bottom+gap<b.top||b.bottom+gap<a.top);
+}
+function mergeCorrectionCaptionAtDrop(source){
+ if(!source?.isConnected)return;
+ const caption=source.querySelector(".correction-caption");
+ if(!caption||caption.hidden)return;
+ const rect=caption.getBoundingClientRect(),text=caption.innerText.trim();
+ if(!text)return;
+ const candidates=[...document.querySelectorAll(".correction-object .correction-caption")]
+  .filter(candidate=>candidate!==caption&&!candidate.hidden&&candidate.innerText.trim()===text&&correctionCaptionRectsOverlap(rect,candidate.getBoundingClientRect()))
+  .sort((a,b)=>{
+   const ar=a.getBoundingClientRect(),br=b.getBoundingClientRect();
+   return Math.hypot(ar.left-rect.left,ar.top-rect.top)-Math.hypot(br.left-rect.left,br.top-rect.top);
+  });
+ if(candidates.length)mergeCorrectionCaptions(source,candidates[0].closest(".correction-object"));
+}
+function updateSingleCorrectionCaptionPosition(el){
  const caption=el.querySelector(".correction-caption"),link=el.querySelector(".correction-link"),line=link&&link.querySelector("line");
  if(!caption||!link||!line)return;
+ caption.hidden=!correctionCaptionIsVisible(el);
  const width=num(el.dataset.width,el.offsetWidth||80),height=num(el.dataset.height,el.offsetHeight||80);
  const dx=num(el.dataset.captionDx,0),dy=num(el.dataset.captionDy,0);
- caption.style.transform=`translateX(calc(-50% + ${dx}px)) translateY(${dy}px)`;
+ const captionRotation=num(el.dataset.captionRotation,0)-num(el.dataset.rotation,0);
+ caption.style.transform=`translateX(calc(-50% + ${dx}px)) translateY(${dy}px) rotate(${captionRotation}deg)`;
  link.setAttribute("width",width);
  link.setAttribute("height",height);
  line.setAttribute("x1",width/2);
@@ -667,12 +781,47 @@ function updateCorrectionCaptionPosition(el){
  line.setAttribute("y2",height+7+dy+(caption.offsetHeight||22)/2);
  link.hidden=caption.hidden;
 }
+function refreshCorrectionCaptionGroup(el){
+ const members=correctionCaptionGroupMembers(el);
+ const visible=members.filter(correctionCaptionIsVisible);
+ let host=visible.find(member=>member.dataset.captionHost==="true")||visible[0]||null;
+ if(!host){
+  members.forEach(member=>{member.querySelector(".correction-caption").hidden=true;member.querySelector(".correction-link").hidden=true;});
+  return;
+ }
+ members.forEach(member=>member.dataset.captionHost=member===host?"true":"false");
+ const target=correctionCaptionGroupTarget(members,host);
+ members.forEach(member=>{
+  const caption=member.querySelector(".correction-caption"),link=member.querySelector(".correction-link"),line=link.querySelector("line");
+  const width=num(member.dataset.width,member.offsetWidth||80),height=num(member.dataset.height,member.offsetHeight||80);
+  const local=correctionWorldToLocal(member,target.x,target.y);
+  const dx=local.x-width/2,dy=local.y-height-7-(caption.offsetHeight||22)/2;
+  const captionRotation=num(member.dataset.captionRotation,0)-num(member.dataset.rotation,0);
+  caption.style.transform=`translateX(calc(-50% + ${dx}px)) translateY(${dy}px) rotate(${captionRotation}deg)`;
+  caption.hidden=member!==host;
+  line.setAttribute("x1",width/2);line.setAttribute("y1",height/2);line.setAttribute("x2",local.x);line.setAttribute("y2",local.y);
+  link.hidden=!correctionCaptionIsVisible(member);
+ });
+}
+function refreshAllCorrectionCaptionGroups(){
+ const done=new Set();
+ document.querySelectorAll(".correction-object").forEach(el=>{
+  const key=el.dataset.captionGroup||el;
+  if(done.has(key))return;
+  done.add(key);
+  if(el.dataset.captionGroup)refreshCorrectionCaptionGroup(el);else updateSingleCorrectionCaptionPosition(el);
+ });
+}
+function updateCorrectionCaptionPosition(el){
+ if(el.dataset.captionGroup)refreshCorrectionCaptionGroup(el);else updateSingleCorrectionCaptionPosition(el);
+}
 function updateCorrectionArt(el){
  const data=correctionState(el),def=correctionDefinition(data.category,data.item),img=el.querySelector("img");
  img.src=correctionArt(data);
  const caption=el.querySelector(".correction-caption");
  caption.innerText=correctionCaptionValue(data,def);
  caption.hidden=!data.showCaption;
+ ensureCorrectionCaptionGroupConsistency(el);
  updateCorrectionCaptionPosition(el);
  requestAnimationFrame(()=>{if(el.isConnected)updateCorrectionCaptionPosition(el)});
  applyCorrectionGroup(el);
@@ -685,6 +834,7 @@ function correctionDetail(el){
 }
 function applyCorrectionGroups(){
  document.querySelectorAll(".correction-object").forEach(applyCorrectionGroup);
+ refreshAllCorrectionCaptionGroups();
  refreshLayers();
 }
 function renderCorrectionLibrary(search=""){
@@ -768,8 +918,12 @@ function addCorrection(categoryId,itemId,d={}){
  wrap.dataset.width=width;wrap.dataset.height=height;wrap.dataset.rotation=d.rotation??0;wrap.dataset.opacity=d.opacity??100;
  wrap.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";wrap.dataset.keepRatio=d.keepRatio===false||d.keepRatio==="false"||(!("keepRatio" in d)&&def.keepRatio===false)?"false":"true";
  wrap.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
- wrap.dataset.weight=d.weight??def.weight??0;wrap.dataset.unit=d.unit||"г";wrap.dataset.showWeight=d.showWeight===false||d.showWeight==="false"?"false":"true";wrap.dataset.showCaption=d.showCaption===false||d.showCaption==="false"?"false":"true";wrap.dataset.caption=d.caption??def.name;wrap.dataset.material=d.material||def.material||"copper";wrap.dataset.shape=d.shape||def.shape||"circle";wrap.dataset.quantity=d.quantity??d.turns??def.quantity??1;wrap.dataset.arrangement=d.arrangement||def.arrangement||"compact";
- wrap.dataset.captionDx=d.captionDx??0;wrap.dataset.captionDy=d.captionDy??0;
+ wrap.dataset.weight=d.weight??def.weight??0;wrap.dataset.unit=d.unit||"г";wrap.dataset.showWeight=d.showWeight===false||d.showWeight==="false"?"false":"true";wrap.dataset.showCaption=d.showCaption===false||d.showCaption==="false"?"false":"true";wrap.dataset.caption=d.caption??def.caption??def.name;wrap.dataset.material=d.material||def.material||"copper";wrap.dataset.shape=d.shape||def.shape||"circle";wrap.dataset.quantity=d.quantity??d.turns??def.quantity??1;wrap.dataset.arrangement=d.arrangement||def.arrangement||"compact";
+ wrap.dataset.captionDx=d.captionDx??0;wrap.dataset.captionDy=d.captionDy??0;wrap.dataset.captionRotation=d.captionRotation??0;
+ if(d.captionGroup)wrap.dataset.captionGroup=d.captionGroup;
+ if(d.captionHost===true||d.captionHost==="true")wrap.dataset.captionHost="true";
+ if(d.captionTargetX!==undefined&&d.captionTargetX!==null)wrap.dataset.captionTargetX=d.captionTargetX;
+ if(d.captionTargetY!==undefined&&d.captionTargetY!==null)wrap.dataset.captionTargetY=d.captionTargetY;
  const place=defaultPlacement(width,height,correctionCounter-1);
  wrap.style.left=(d.left??place.left)+"px";wrap.style.top=(d.top??place.top)+"px";wrap.style.width=width+"px";wrap.style.height=height+"px";wrap.style.transform=`rotate(${wrap.dataset.rotation}deg)`;
  wrap.classList.toggle("locked",wrap.dataset.locked==="true");
@@ -787,6 +941,7 @@ function updCorrectionPanel(){
  correctionName.innerText=def.name;correctionCategoryName.innerText=category.name;correctionPreview.src=correctionArt(data);
  lockCorrection.checked=data.locked==="true";correctionOp.value=data.opacity;correctionOpTxt.innerText=data.opacity;correctionRot.value=data.rotation;correctionRotTxt.innerText=data.rotation;
  correctionShowCaption.checked=data.showCaption;correctionCaptionText.value=data.caption||def.name;
+ correctionCaptionRot.value=data.captionRotation;correctionCaptionRotTxt.innerText=data.captionRotation;
  correctionKeepRatio.checked=data.keepRatio;correctionWidth.value=Math.round(data.width);correctionHeight.value=Math.round(data.height);correctionSize.value=Math.min(600,Math.round(data.width));correctionSizeTxt.innerText=Math.round(data.width);
  correctionMeasurement.hidden=!isMeasuredCorrection(def);correctionShowWeight.checked=data.showWeight;correctionWeightFields.hidden=!data.showWeight;correctionWeight.value=data.weight;correctionWeightUnit.value=data.unit;
  spiralControls.hidden=def.visual!=="spiral";correctionMaterial.value=data.material;correctionShape.value=data.shape;correctionQuantity.value=String(data.quantity);correctionArrangement.value=data.arrangement;spiralArrangementField.hidden=data.quantity<=1;
@@ -795,14 +950,16 @@ function updCorrectionPanel(){
   if(isGroupableCorrection(def))correctionStoneQuantity.value=String(data.quantity);
  }
 }
-function setCorrectionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.rotation=rotation;sel.style.transform=`rotate(${rotation}deg)`;updCorrectionPanel()}
+function setCorrectionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.rotation=rotation;sel.style.transform=`rotate(${rotation}deg)`;updateCorrectionCaptionPosition(sel);updCorrectionPanel()}
 function stepCorrectionRot(delta){pushHistory();setCorrectionRotation(num(correctionRot.value,0)+delta)}
+function setCorrectionCaptionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.captionRotation=rotation;updateCorrectionCaptionPosition(sel);updCorrectionPanel()}
+function stepCorrectionCaptionRot(delta){pushHistory();setCorrectionCaptionRotation(num(correctionCaptionRot.value,0)+delta)}
 function updateCorrectionDimensions(width,height){
  if(selType!=="correction"||sel.dataset.locked==="true")return;
  const w=Math.max(8,Math.min(2000,num(width,80))),h=Math.max(8,Math.min(2000,num(height,80)));
  sel.dataset.width=w;sel.dataset.height=h;sel.style.width=w+"px";sel.style.height=h+"px";updateCorrectionArt(sel);updCorrectionPanel();
 }
-function duplicateCorrection(){if(selType!=="correction")return;pushHistory();const data=correctionState(sel);data.left+=24;data.top+=24;addCorrection(data.category,data.item,data)}
+function duplicateCorrection(){if(selType!=="correction")return;pushHistory();const data=correctionState(sel);data.left+=24;data.top+=24;delete data.captionGroup;delete data.captionHost;delete data.captionTargetX;delete data.captionTargetY;addCorrection(data.category,data.item,data)}
 function startCorrectionResize(e){
  e.preventDefault();e.stopPropagation();const el=e.target.closest(".correction-object");select(el,"correction");if(el.dataset.locked==="true")return;pushHistory();
  const p=point(e),handle=[...e.target.classList].find(c=>["nw","n","ne","e","se","s","sw","w"].includes(c))||"se";
@@ -820,7 +977,8 @@ function startCorrectionCaptionDrag(e){
  if(el.dataset.locked==="true")return;
  pushHistory();
  const p=point(e);
- drag={type:"correction-caption",el,x:p.x,y:p.y,dx:num(el.dataset.captionDx,0),dy:num(el.dataset.captionDy,0),rot:num(el.dataset.rotation,0)*Math.PI/180};
+ const members=correctionCaptionGroupMembers(el),target=el.dataset.captionGroup?correctionCaptionGroupTarget(members,el):null;
+ drag={type:"correction-caption",el,x:p.x,y:p.y,dx:num(el.dataset.captionDx,0),dy:num(el.dataset.captionDy,0),rot:num(el.dataset.rotation,0)*Math.PI/180,targetX:target?.x,targetY:target?.y};
  bind();
 }
 lockCorrection.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.locked=e.target.checked?"true":"false";sel.classList.toggle("locked",e.target.checked);refreshLayers()};
@@ -856,12 +1014,15 @@ correctionWeightUnit.onchange=e=>{if(selType!=="correction")return;pushHistory()
 correctionShowCaption.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.showCaption=e.target.checked?"true":"false";updateCorrectionArt(sel);refreshLayers()};
 correctionCaptionText.onfocus=()=>pushHistory();
 correctionCaptionText.oninput=e=>{if(selType!=="correction")return;sel.dataset.caption=e.target.value;updateCorrectionArt(sel);refreshLayers()};
+correctionCaptionRot.onfocus=()=>pushHistory();
+correctionCaptionRot.oninput=e=>setCorrectionCaptionRotation(e.target.value);
 correctionMaterial.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.material=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionShape.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.shape=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionQuantity.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.quantity=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 correctionArrangement.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.arrangement=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 if(typeof correctionStoneQuantity!=="undefined")correctionStoneQuantity.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.quantity=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();labelCounter++;let l=document.createElement("div");l.className="text-label";l.dataset.rot=d.rotation??0;l.dataset.fs=d.fontSize??22;l.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";l.innerText=d.text??"Надпись";const place=defaultPlacement(120,38,labelCounter-1);l.style.left=(d.left??place.left)+"px";l.style.top=(d.top??place.top)+"px";l.style.fontSize=l.dataset.fs+"px";l.style.transform=`rotate(${l.dataset.rot}deg)`;prepGeneric(l,"label");canvas.appendChild(l);applyLayerVisibility(l,"label");select(l,"label");updLabelPanel()}
+function duplicateTextLabel(){if(selType!=="label")return;pushHistory();addTextLabel({left:parseFloat(sel.style.left)+24,top:parseFloat(sel.style.top)+24,text:sel.innerText,rotation:num(sel.dataset.rot,0),fontSize:num(sel.dataset.fs,22),visible:isLayerVisible(sel)})}
 function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=sel.dataset.rot;labelDeg.innerText=sel.dataset.rot}
 labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){sel.dataset.rot=e.target.value;sel.style.transform=`rotate(${e.target.value}deg)`;labelDeg.innerText=e.target.value}}
 function workingAreaCenter(){
@@ -979,26 +1140,45 @@ function startAxisDrag(e){
 lockAxes.onchange=e=>{const g=document.querySelector(".axis-group"); if(g){pushHistory();g.dataset.locked=e.target.checked?"true":"false";refreshLayers()}};
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
-function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove()}clearSel()}canvas.onclick=clearSel;
+function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove();refreshAllCorrectionCaptionGroups()}clearSel()}canvas.onclick=clearSel;
 function collect(){let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));let axes=[]; const ag=document.querySelector(".axis-group"); if(ag){axes=[{left:parseFloat(ag.style.left),top:parseFloat(ag.style.top),locked:ag.dataset.locked||"false",visible:isLayerVisible(ag),len:num(ag.dataset.len,1800),opacity:num(ag.dataset.opacity,100)}]};
 let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
 let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
 let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
 let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
 return{version:"4.2",planImageData:planData,planVisible:isLayerVisible(plan),planRotation:num(planRot.value,0),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,stickers,axes,overlays,purushas,corrections,correctionGroups:groups}}
-function saveProject(){download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),"vastu-project.json")}projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
+function cleanFileBaseName(value,fallback){
+ const cleaned=String(value||"").trim().replace(/\.(json|png|pdf)$/i,"").replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim();
+ return cleaned||fallback;
+}
+function askFileBaseName(message,fallback){
+ const value=window.prompt(message,fallback);
+ return value===null?null:cleanFileBaseName(value,fallback);
+}
+function saveProject(){
+ const name=askFileBaseName("Название файла проекта",projectBaseName);
+ if(!name)return;
+ projectBaseName=name;
+ download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),name+".json");
+}
+projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;projectBaseName=cleanFileBaseName(f.name,projectBaseName);let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
 function loadProject(p){document.querySelectorAll(".vastu-grid,.text-label,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());clearSel();planData=p.planImageData||"";if(planData)plan.src=planData;else plan.removeAttribute("src");plan.dataset.visible=p.planVisible===false?"false":"true";applyLayerVisibility(plan,"plan");planOpacity.value=p.planOpacity??85;planOpacityTxt.innerText=planOpacity.value;plan.style.opacity=planOpacity.value/100;lastPlanRot=0;setPlanRot(p.planRotation??0);zoomLevel=p.zoomLevel??1;applyZoom();initCorrectionGroups(p.correctionGroups||{});renderCorrectionLibrary(correctionSearch.value);(p.grids||[]).forEach(addGrid);(p.labels||[]).forEach(addTextLabel);(p.stickers||[]).forEach(s=>addSticker(s.color,s));(p.axes||[]).forEach(ax=>{addAxes(); const g=document.querySelector(".axis-group"); if(g){g.style.left=ax.left+"px"; g.style.top=ax.top+"px"; g.dataset.locked=ax.locked||"false";g.dataset.visible=ax.visible===false||ax.visible==="false"?"false":"true"; g.dataset.len=ax.len??1800; g.dataset.opacity=ax.opacity??100; lockAxes.checked=g.dataset.locked==="true"; updateAxisVisual(g);applyLayerVisibility(g,"axis");}});(p.overlays||[]).forEach(addOverlayImage);(p.purushas||[]).forEach(addPurushaGrid);(p.corrections||[]).forEach(o=>addCorrection(o.category,o.item,o));applyCorrectionGroups()}
 async function exportPDF(){
+ const name=askFileBaseName("Название PDF-файла",exportBaseName);
+ if(!name)return;
  try{
   const canvas=await renderExportCanvas();
-  download(canvasToPDFBlob(canvas),"vastu-map.pdf");
+  exportBaseName=name;
+  download(canvasToPDFBlob(canvas),name+".pdf");
  }catch(err){
   alert("Не удалось создать PDF. Проверь, что страница загружена полностью.");
  }
 }
 function download(blob,name){let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 async function exportPNG(){
- try{await html2canvasLike()}catch(err){alert("Не удалось создать PNG. Проверь, что страница загружена полностью.")}
+ const name=askFileBaseName("Название PNG-файла",exportBaseName);
+ if(!name)return;
+ try{exportBaseName=name;await html2canvasLike(name+".png")}catch(err){alert("Не удалось создать PNG. Проверь, что страница загружена полностью.")}
 }
 async function asDataURL(src){
  if(!src||src.startsWith("data:"))return src;
@@ -1040,7 +1220,7 @@ function exportArea(p,planFrame,labels=[]){
  });
  (p.labels||[]).forEach(l=>{if(l.visible!==false)includeExportRect(bounds,l.left,l.top,Math.max(20,l.text.length*l.fontSize*.62),l.fontSize*1.35,l.rotation)});
  (p.stickers||[]).forEach(s=>{if(s.visible!==false)includeExportRect(bounds,s.left,s.top,s.size,s.size)});
- labels.forEach(label=>includeExportRect(bounds,label.x,label.y,label.width,label.height,0));
+ labels.forEach(label=>includeExportRect(bounds,label.x,label.y,label.width,label.height,label.rotation||0));
  if(!Number.isFinite(bounds.left))return{left:0,top:0,width:1600,height:1200};
  const padding=42;
  const left=Math.max(0,Math.floor(bounds.left-padding)),top=Math.max(0,Math.floor(bounds.top-padding));
@@ -1097,31 +1277,64 @@ function placeExportLabel(anchor,metrics,placed){
  const fallback={...metrics,x:Math.max(0,Math.min(1600-metrics.width,Math.round(cx-metrics.width/2))),y:Math.max(0,Math.min(1200-metrics.height,Math.round(anchor.y+anchor.height+gap)))};
  return fallback;
 }
+function correctionExportCaptionVisible(o,p){
+ const group=(p.correctionGroups||{})[o.category]||{visible:true};
+ return o.visible!==false&&o.visible!=="false"&&group.visible!==false&&o.showCaption!==false&&o.showCaption!=="false";
+}
+function correctionExportManualCenter(o,metrics){
+ const dx=num(o.captionDx,0),dy=num(o.captionDy,0),rotation=num(o.rotation,0)*Math.PI/180;
+ const cx=o.left+o.width/2,cy=o.top+o.height/2,localY=o.height/2+7+dy+metrics.height/2;
+ return{x:cx+dx*Math.cos(rotation)-localY*Math.sin(rotation),y:cy+dx*Math.sin(rotation)+localY*Math.cos(rotation)};
+}
+function correctionExportCenteredBox(target,metrics){
+ return{...metrics,x:Math.max(0,Math.min(1600-metrics.width,Math.round(target.x-metrics.width/2))),y:Math.max(0,Math.min(1200-metrics.height,Math.round(target.y-metrics.height/2)))};
+}
+function correctionExportAnchor(o){
+ return{x:o.left+o.width/2,y:o.top+o.height/2};
+}
 function layoutExportCorrectionLabels(p){
- const placed=[],labels=[];
- (p.corrections||[]).forEach(o=>{
-  const group=p.correctionGroups[o.category]||{visible:true};
-  if(o.visible===false||!group.visible||o.showCaption===false)return;
+ const corrections=p.corrections||[],placed=[],labels=[],doneGroups=new Set();
+ corrections.forEach(o=>{
+  if(!correctionExportCaptionVisible(o,p))return;
   const def=correctionDefinition(o.category,o.item);
   if(!def)return;
+  if(o.captionGroup){
+   if(doneGroups.has(o.captionGroup))return;
+   doneGroups.add(o.captionGroup);
+   const members=corrections.filter(member=>member.captionGroup===o.captionGroup&&correctionExportCaptionVisible(member,p));
+   if(!members.length)return;
+   const host=members.find(member=>member.captionHost)||members[0];
+   const hostDef=correctionDefinition(host.category,host.item);
+   if(!hostDef)return;
+   const text=correctionCaptionValue(host,hostDef),metrics=estimateExportLabel(text);
+   const targetX=num(host.captionTargetX,null),targetY=num(host.captionTargetY,null);
+   const target=targetX!==null&&targetY!==null?{x:targetX,y:targetY}:correctionExportManualCenter(host,metrics);
+   const box=correctionExportCenteredBox(target,metrics);
+   const hostGroup=(p.correctionGroups||{})[host.category]||{opacity:100};
+   placed.push(box);
+   labels.push({...box,text,anchors:members.map(correctionExportAnchor),rotation:num(host.captionRotation,0),opacity:num(host.opacity,100)*num(hostGroup.opacity,100)/10000});
+   return;
+  }
+  const group=(p.correctionGroups||{})[o.category]||{visible:true,opacity:100};
   const text=correctionCaptionValue(o,def);
   const metrics=estimateExportLabel(text);
   const dx=num(o.captionDx,0),dy=num(o.captionDy,0);
   const manual=Math.abs(dx)>1||Math.abs(dy)>1;
+  const manualCenter=correctionExportManualCenter(o,metrics);
   const box=manual
-   ?{...metrics,x:Math.max(0,Math.min(1600-metrics.width,Math.round(o.left+o.width/2+dx-metrics.width/2))),y:Math.max(0,Math.min(1200-metrics.height,Math.round(o.top+o.height+7+dy)))}
+   ?correctionExportCenteredBox(manualCenter,metrics)
    :placeExportLabel({x:o.left,y:o.top,width:o.width,height:o.height},metrics,placed);
   placed.push(box);
-  labels.push({...box,text,anchorX:o.left+o.width/2,anchorY:o.top+o.height/2,opacity:num(o.opacity,100)*num(group.opacity,100)/10000});
+  labels.push({...box,text,anchors:[correctionExportAnchor(o)],rotation:num(o.captionRotation,0),opacity:num(o.opacity,100)*num(group.opacity,100)/10000});
  });
  return labels;
 }
 function exportLabelSVG(label){
  const textX=label.x+label.width/2,textY=label.y+label.padY+label.fontSize;
- const line=label.anchorX<label.x||label.anchorX>label.x+label.width||label.anchorY<label.y||label.anchorY>label.y+label.height
-  ?`<line x1="${label.anchorX}" y1="${label.anchorY}" x2="${label.x+label.width/2}" y2="${label.y+label.height/2}" stroke="#6b6961" stroke-width="1" opacity=".35"/>`:"";
+ const cx=label.x+label.width/2,cy=label.y+label.height/2;
+ const lines=(label.anchors||[]).map(anchor=>`<line x1="${anchor.x}" y1="${anchor.y}" x2="${cx}" y2="${cy}" stroke="#6b6961" stroke-width="1" stroke-dasharray="3 3" opacity=".35"/>`).join("");
  const tspans=label.lines.map((lineText,index)=>`<tspan x="${textX}" dy="${index?label.lineHeight:0}">${esc(lineText)}</tspan>`).join("");
- return `${line}<g opacity="${Math.min(1,Math.max(.25,label.opacity))}"><rect x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="8" fill="#fff" fill-opacity=".9" stroke="#d7d0c6" stroke-width="1"/><text x="${textX}" y="${textY}" text-anchor="middle" font-size="${label.fontSize}" font-weight="600" fill="#3f3d38">${tspans}</text></g>`;
+ return `${lines}<g opacity="${Math.min(1,Math.max(.25,label.opacity))}" transform="rotate(${label.rotation||0} ${cx} ${cy})"><rect x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="8" fill="#fff" fill-opacity=".9" stroke="#d7d0c6" stroke-width="1"/><text x="${textX}" y="${textY}" text-anchor="middle" font-size="${label.fontSize}" font-weight="600" fill="#3f3d38">${tspans}</text></g>`;
 }
 async function renderExportCanvas(){
  const result=await buildSVG();
@@ -1145,10 +1358,27 @@ async function renderExportCanvas(){
   URL.revokeObjectURL(url);
  }
 }
-async function html2canvasLike(){
+async function html2canvasLike(filename="vastu-map.png"){
  const c=await renderExportCanvas();
- await new Promise(resolve=>c.toBlob(blob=>{download(blob,"vastu-map.png");resolve();},"image/png"));
+ await new Promise(resolve=>c.toBlob(blob=>{download(blob,filename);resolve();},"image/png"));
 }
+async function showExportPreview(){
+ previewModal.hidden=false;
+ previewLoading.hidden=false;
+ previewImage.hidden=true;
+ previewImage.removeAttribute("src");
+ try{
+  const c=await renderExportCanvas();
+  previewImage.src=c.toDataURL("image/png");
+  previewImage.hidden=false;
+ }catch(err){
+  previewLoading.innerText="Не удалось подготовить предпросмотр.";
+  return;
+ }
+ previewLoading.hidden=true;
+ previewLoading.innerText="Подготавливаю изображение...";
+}
+function closeExportPreview(){previewModal.hidden=true}
 function canvasToPDFBlob(canvas){
  const landscape=canvas.width>canvas.height;
  const pageW=landscape?841.89:595.28,pageH=landscape?595.28:841.89,margin=24;
@@ -1312,6 +1542,7 @@ isRestoring=false;
 requestAnimationFrame(centerWorkspace);
 
 document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"&&!previewModal.hidden){closeExportPreview();return;}
  if(!(e.ctrlKey||e.metaKey)) return;
  const key=e.key.toLowerCase();
  if(key==="z"&&!e.shiftKey){e.preventDefault();undoLast();}
@@ -1445,6 +1676,7 @@ function move(e){
    if(drag.el.classList&&drag.el.classList.contains("vastu-grid")&&drag.el.dataset.locked==="true")return;
    drag.el.style.left=drag.l+(p.x-drag.x)+"px";
    drag.el.style.top=drag.t+(p.y-drag.y)+"px";
+   if(drag.el.classList?.contains("correction-object"))updateCorrectionCaptionPosition(drag.el);
  }
 
  if(drag.type=="resize"){
@@ -1520,10 +1752,14 @@ function move(e){
  if(drag.type=="correction-caption"){
    if(drag.el.dataset.locked==="true")return;
    const dx=p.x-drag.x,dy=p.y-drag.y;
-   const cos=Math.cos(-drag.rot),sin=Math.sin(-drag.rot);
-   const localX=dx*cos-dy*sin,localY=dx*sin+dy*cos;
-   drag.el.dataset.captionDx=Math.round(drag.dx+localX);
-   drag.el.dataset.captionDy=Math.round(drag.dy+localY);
+   if(drag.el.dataset.captionGroup){
+     setCorrectionCaptionGroupTarget(correctionCaptionGroupMembers(drag.el),{x:drag.targetX+dx,y:drag.targetY+dy});
+   }else{
+     const cos=Math.cos(-drag.rot),sin=Math.sin(-drag.rot);
+     const localX=dx*cos-dy*sin,localY=dx*sin+dy*cos;
+     drag.el.dataset.captionDx=Math.round(drag.dx+localX);
+     drag.el.dataset.captionDy=Math.round(drag.dy+localY);
+   }
    updateCorrectionCaptionPosition(drag.el);
  }
 
@@ -1567,6 +1803,7 @@ function move(e){
    let deg=Math.round(nd(Math.atan2(p.y-drag.cy,p.x-drag.cx)*180/Math.PI+90));
    drag.el.dataset.rotation=deg;
    drag.el.style.transform=`rotate(${deg}deg)`;
+   updateCorrectionCaptionPosition(drag.el);
    if(drag.el===sel)updCorrectionPanel();
  }
 }
