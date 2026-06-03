@@ -136,6 +136,7 @@ window.CORRECTION_LIBRARY = {
         { id: "sofa", name: "Диван", visual: "sofa", color: "#7c8370", measurable: false, size: 130, aspect: 1.8 },
         { id: "table", name: "Стол", visual: "table", color: "#a87852", measurable: false, size: 100 },
         { id: "table-rect", name: "Стол прямоугольный", visual: "table-rect", color: "#a87852", measurable: false, size: 130, aspect: 1.8, keepRatio: false },
+        { id: "tv", name: "ТВ", visual: "tv", color: "#2f3b42", measurable: false, size: 120, aspect: 1.45 },
         { id: "window", name: "Окно", visual: "window", color: "#73a9c4", measurable: false, size: 130, aspect: 3, keepRatio: false },
         { id: "shower", name: "Душ", visual: "shower", color: "#78aebe", measurable: false, size: 95 },
         { id: "fridge", name: "Холодильник", visual: "fridge", color: "#83939b", measurable: false, size: 105, aspect: 0.72 },

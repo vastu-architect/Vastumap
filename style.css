@@ -152,6 +152,29 @@ input[type=number],input:not([type]),#labelText,select{
   background:var(--line);
 }
 
+.png-quality{
+  min-height:42px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:0 11px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:rgba(255,255,255,.78);
+  color:var(--muted);
+  font-size:12px;
+  white-space:nowrap;
+}
+
+.png-quality select{
+  border:0;
+  background:transparent;
+  color:#393631;
+  font:inherit;
+  font-weight:600;
+  outline:0;
+}
+
 .icon-action{
   width:42px;
   height:42px;
@@ -708,6 +731,13 @@ input[type=number],input:not([type]),#labelText,select{
 
 .purusha-preview img{max-width:100%;max-height:100%;object-fit:contain}
 .property-group > label:not(.switch-line){font-size:13px;display:flex;flex-direction:column;gap:7px}
+.property-group textarea{
+  width:100%;
+  min-height:120px;
+  resize:vertical;
+  line-height:1.45;
+  font-family:inherit;
+}
 .marker-size.wide{margin-top:18px;padding:12px;border:1px solid var(--line);border-radius:12px}
 
 .correction-card{
@@ -774,6 +804,11 @@ input[type=number],input:not([type]),#labelText,select{
   margin:0 0 2px;
   font-size:12px;
 }
+.sticker-duplicate-action{
+  margin-top:18px;
+  min-height:36px;
+  font-size:12px;
+}
 
 .vastu-grid{
   position:absolute;
@@ -794,8 +829,8 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .selected{outline:3px solid rgba(65,111,145,.85);outline-offset:3px}
-.vastu-grid.locked,.purusha-grid.locked,.overlay-wrap.locked,.correction-object.locked{cursor:not-allowed}
-.vastu-grid.locked.selected,.purusha-grid.locked.selected,.overlay-wrap.locked.selected,.correction-object.locked.selected{outline:3px solid #7f7a71}
+.vastu-grid.locked,.purusha-grid.locked,.overlay-wrap.locked,.correction-object.locked,.axis.locked{cursor:not-allowed}
+.vastu-grid.locked.selected,.purusha-grid.locked.selected,.overlay-wrap.locked.selected,.correction-object.locked.selected,.axis.locked.selected{outline:3px solid #7f7a71}
 
 .cell{
   border:1px solid rgba(56,62,61,.43);
@@ -976,11 +1011,11 @@ input[type=number],input:not([type]),#labelText,select{
   box-shadow:0 1px 8px rgba(0,0,0,.2);
 }
 
-.handle,.rotate-handle,.purusha-handle,.overlay-handle,.correction-handle,.correction-rotate-handle{
+.handle,.rotate-handle,.purusha-handle,.overlay-handle,.correction-handle,.correction-rotate-handle,.footnote-handle{
   display:none;
 }
 
-.selected .handle,.selected .rotate-handle,.selected .purusha-handle,.selected .overlay-handle,.selected .correction-handle,.selected .correction-rotate-handle{
+.selected .handle,.selected .rotate-handle,.selected .purusha-handle,.selected .overlay-handle,.selected .correction-handle,.selected .correction-rotate-handle,.selected .footnote-handle{
   display:block;
 }
 
@@ -1075,6 +1110,79 @@ body.correction-focus .correction-object:not(.selected) .correction-link{
   touch-action:none;
 }
 
+.footnote{
+  position:absolute;
+  left:220px;
+  top:220px;
+  width:240px;
+  height:160px;
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  border:1px solid rgba(210,204,195,.88);
+  border-radius:18px;
+  background:rgba(255,255,255,.84);
+  color:#302f2b;
+  box-shadow:0 18px 42px rgba(47,43,36,.16);
+  overflow:visible;
+  cursor:move;
+  user-select:none;
+  z-index:24;
+  touch-action:none;
+  backdrop-filter:blur(16px) saturate(1.12);
+  -webkit-backdrop-filter:blur(16px) saturate(1.12);
+}
+
+.footnote-header{
+  flex:0 0 auto;
+  min-height:34px;
+  padding:8px 14px;
+  border-bottom:1px solid rgba(218,213,205,.88);
+  border-radius:18px 18px 0 0;
+  background:linear-gradient(180deg,rgba(250,248,244,.92),rgba(239,235,229,.82));
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.01em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.footnote-body{
+  flex:1 1 auto;
+  min-height:0;
+  padding:12px 14px 14px;
+  overflow:hidden;
+  line-height:1.38;
+  white-space:normal;
+}
+
+.footnote-body p{
+  margin:0 0 .62em;
+}
+
+.footnote-body p:last-child{margin-bottom:0}
+
+.footnote-handle{
+  position:absolute;
+  width:12px;
+  height:12px;
+  z-index:31;
+  border-radius:50%;
+  border:2px solid #fff;
+  background:var(--blue);
+  box-shadow:0 1px 4px rgba(33,48,56,.22);
+}
+
+.footnote-handle.nw{left:-8px;top:-8px;cursor:nwse-resize}
+.footnote-handle.n{left:50%;top:-8px;transform:translateX(-50%);cursor:ns-resize}
+.footnote-handle.ne{right:-8px;top:-8px;cursor:nesw-resize}
+.footnote-handle.e{right:-8px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+.footnote-handle.se{right:-8px;bottom:-8px;cursor:nwse-resize}
+.footnote-handle.s{left:50%;bottom:-8px;transform:translateX(-50%);cursor:ns-resize}
+.footnote-handle.sw{left:-8px;bottom:-8px;cursor:nesw-resize}
+.footnote-handle.w{left:-8px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+
 .sticker{
   position:absolute;
   left:160px;
@@ -1126,6 +1234,6 @@ body.exporting .selected,body.exporting .locked{outline:none !important}
   .layout,.work-area{display:block;height:auto}
   .workspace{padding:0;overflow:visible}
   .canvas{margin:0;transform:none !important;box-shadow:none;border:0;border-radius:0}
-  .handle,.rotate-handle,.purusha-handle,.overlay-handle,.correction-handle,.correction-rotate-handle{display:none !important}
+  .handle,.rotate-handle,.purusha-handle,.overlay-handle,.correction-handle,.correction-rotate-handle,.footnote-handle{display:none !important}
   .selected,.locked{outline:none !important}
 }

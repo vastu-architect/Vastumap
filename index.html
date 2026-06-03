@@ -26,6 +26,13 @@
       <span class="divider"></span>
       <button class="action" onclick="showExportPreview()">Предпросмотр</button>
       <button class="action" onclick="exportPDF()">Экспорт PDF</button>
+      <label class="png-quality">PNG
+        <select id="pngQuality" title="Качество PNG">
+          <option value="1" selected>обычный</option>
+          <option value="2">HD x2</option>
+          <option value="3">Ultra x3</option>
+        </select>
+      </label>
       <button class="action dark" onclick="exportPNG()">Экспорт PNG</button>
     </nav>
   </header>
@@ -41,6 +48,7 @@
         <button onclick="addPurushaGrid()">Пуруша</button>
         <button onclick="addAxes()">Оси</button>
         <button onclick="addTextLabel()">Надпись</button>
+        <button onclick="addFootnote()">Сноска</button>
         <label class="add-overlay">Картинка<input type="file" accept="image/*" id="overlayInput"></label>
       </div>
       <div class="layer-bulk-actions">
@@ -152,6 +160,9 @@
 
       <section class="property-group" data-properties="axis">
         <label class="switch-line"><input type="checkbox" id="lockAxes"> Зафиксировать слой</label>
+        <button class="full-action" onclick="centerAxisOnBrahmasthan()">В центр Брахмастана</button>
+        <div class="value-row"><label>Поворот</label><span class="value"><span id="axisRotTxt">0</span>&deg;</span></div>
+        <div class="step-control"><button onclick="stepAxisRot(-1)">-1&deg;</button><input type="number" value="0" id="axisRot"><button onclick="stepAxisRot(1)">+1&deg;</button></div>
         <div class="value-row"><label>Длина лучей</label><span class="value"><span id="axisLenTxt">1800</span> px</span></div>
         <input type="range" min="200" max="2400" value="1800" id="axisLen">
         <div class="value-row"><label>Прозрачность</label><span class="value"><span id="axisOpTxt">100</span>%</span></div>
@@ -178,6 +189,26 @@
         <button class="full-action duplicate-action" onclick="duplicateTextLabel()">Дублировать надпись</button>
       </section>
 
+      <section class="property-group" data-properties="footnote">
+        <p class="hint">Сноска нужна для комментариев по коррекциям. Заголовок и текст редактируются, размер блока меняется вручную.</p>
+        <label>Заголовок сноски<input id="footnoteTitle" placeholder="Например: Юго-Восток"></label>
+        <label>Текст сноски<textarea id="footnoteText" rows="7" placeholder="Комментарий по коррекциям"></textarea></label>
+        <label>Формат
+          <select id="footnoteFormat">
+            <option value="paragraphs">Абзацы</option>
+            <option value="numbered">Нумерация</option>
+            <option value="bullets">Список</option>
+          </select>
+        </label>
+        <div class="value-row"><label>Размер текста</label><span class="value"><span id="footnoteFontTxt">14</span> px</span></div>
+        <input type="range" min="9" max="28" value="14" id="footnoteFontSize">
+        <div class="dimension-inputs">
+          <label>Ширина <input type="number" min="120" max="900" value="240" id="footnoteWidth"> px</label>
+          <label>Высота <input type="number" min="80" max="700" value="160" id="footnoteHeight"> px</label>
+        </div>
+        <button class="full-action duplicate-action" onclick="duplicateFootnote()">Дублировать сноску</button>
+      </section>
+
       <section class="property-group" data-properties="sticker">
         <p class="hint">Метка показывает проблемную или благоприятную зону на плане.</p>
         <div class="marker-size wide">
@@ -185,6 +216,7 @@
           <span>Размер метки</span>
           <button onclick="resizeSticker(1)">+</button>
         </div>
+        <button class="full-action duplicate-action sticker-duplicate-action" onclick="duplicateSticker()">Дублировать метку</button>
       </section>
 
       <section class="property-group" data-properties="correction">

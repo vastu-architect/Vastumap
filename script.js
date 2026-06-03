@@ -1,4 +1,4 @@
-let sel=null,selType="",gridCounter=0,labelCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,captionGroupCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false,projectBaseName="vastu-project",exportBaseName="vastu-map";
+let sel=null,selType="",gridCounter=0,labelCounter=0,footnoteCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,captionGroupCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false,projectBaseName="vastu-project",exportBaseName="vastu-map";
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
 plan.dataset.visible="true";
 const names=["Северо-Запад","Север","Северо-Восток","Запад","Брахмастан","Восток","Юго-Запад","Юг","Юго-Восток"];
@@ -26,6 +26,7 @@ function projectLayerItems(){
   ...[...document.querySelectorAll(".overlay-wrap")].map(el=>({el,type:"overlay"})),
   ...[...document.querySelectorAll(".correction-object")].map(el=>({el,type:"correction"})),
   ...[...document.querySelectorAll(".text-label")].map(el=>({el,type:"label"})),
+  ...[...document.querySelectorAll(".footnote")].map(el=>({el,type:"footnote"})),
   ...[...document.querySelectorAll(".sticker")].map(el=>({el,type:"sticker"}))
  ];
 }
@@ -78,7 +79,30 @@ function toggleCorrectionFocus(){
 imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{planData=x.target.result;plan.src=planData;selectPlan()};r.readAsDataURL(f)}
 overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>addOverlayImage({src:x.target.result});r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.onfocus=()=>pushHistory();planOpacity.oninput=e=>{plan.style.opacity=e.target.value/100;planOpacityTxt.innerText=e.target.value};
-function setPlanRot(v){let n=nd(v),delta=n-lastPlanRot;planRot.value=Math.round(n);planDegTxt.innerText=Math.round(n);plan.style.transform=`translate(-50%,-50%) rotate(${n}deg)`;document.querySelectorAll(".vastu-grid").forEach(g=>{if(g.dataset.locked==="true"){let d=nd((+g.dataset.rot||0)+delta);g.dataset.rot=d;g.style.transform=`rotate(${d}deg)`;if(g===sel)updGridPanel()}});lastPlanRot=n}function stepPlan(x){pushHistory();setPlanRot((+planRot.value||0)+x)}
+function setPlanRot(v){
+ let n=nd(v),delta=n-lastPlanRot;
+ planRot.value=Math.round(n);
+ planDegTxt.innerText=Math.round(n);
+ plan.style.transform=`translate(-50%,-50%) rotate(${n}deg)`;
+ document.querySelectorAll(".vastu-grid").forEach(g=>{
+  if(g.dataset.locked==="true"){
+   let d=nd((+g.dataset.rot||0)+delta);
+   g.dataset.rot=d;
+   g.style.transform=`rotate(${d}deg)`;
+   if(g===sel)updGridPanel();
+  }
+ });
+ document.querySelectorAll(".axis-group").forEach(g=>{
+  if(g.dataset.locked==="true"){
+   let d=nd((+g.dataset.rotation||0)+delta);
+   g.dataset.rotation=d;
+   g.style.transform=`rotate(${d}deg)`;
+   if(g===sel)updAxisPanel();
+  }
+ });
+ lastPlanRot=n;
+}
+function stepPlan(x){pushHistory();setPlanRot((+planRot.value||0)+x)}
 function updateGridTypography(grid){
  if(!grid)return 15;
  const width=parseFloat(grid.style.width)||grid.offsetWidth||480;
@@ -118,7 +142,7 @@ function addGrid(d={}){
  g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};
  canvas.appendChild(g);updateGridTypography(g);applyLayerVisibility(g,"grid");select(g,"grid");
 }
-function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");showProperties(t);if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();if(t==="correction")updCorrectionPanel();refreshLayers()}
+function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");showProperties(t);if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="footnote")updFootnotePanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();if(t==="correction")updCorrectionPanel();refreshLayers()}
 function updGridPanel(){
  if(!sel||selType!="grid")return;
  updateGridTypography(sel);
@@ -628,6 +652,7 @@ function correctionArt(data){
  if(def.visual==="sofa") body=`<rect x="9" y="22" width="82" height="57" rx="13" fill="${color}" opacity=".38" stroke="${color}" stroke-width="3"/><rect x="18" y="30" width="64" height="40" rx="9" fill="${color}" opacity=".72"/><path d="M18 52H82M50 31V69" stroke="${light}" stroke-opacity=".5" stroke-width="2"/><rect x="9" y="33" width="10" height="35" rx="4" fill="${color}"/><rect x="81" y="33" width="10" height="35" rx="4" fill="${color}"/>`;
  if(def.visual==="table") body=`<circle cx="50" cy="50" r="27" fill="${color}" opacity=".7" stroke="${color}" stroke-width="3"/><rect x="40" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".4"/><rect x="40" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".4"/><rect x="8" y="40" width="13" height="20" rx="3" fill="${color}" opacity=".4"/><rect x="79" y="40" width="13" height="20" rx="3" fill="${color}" opacity=".4"/>`;
  if(def.visual==="table-rect") body=`<rect x="15" y="25" width="70" height="50" rx="5" fill="${color}" opacity=".72" stroke="${color}" stroke-width="3"/><rect x="24" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><rect x="56" y="8" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><rect x="24" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><rect x="56" y="79" width="20" height="13" rx="3" fill="${color}" opacity=".42"/><path d="M28 31H72M28 69H72" stroke="#fff" stroke-opacity=".38" stroke-width="2"/>`;
+ if(def.visual==="tv") body=`<rect x="9" y="16" width="82" height="55" rx="5" fill="${dark}" stroke="${color}" stroke-width="4"/><rect x="16" y="23" width="68" height="39" rx="3" fill="#dceef3" opacity=".72"/><path d="M22 57L77 28" stroke="#fff" stroke-width="3" opacity=".45"/><path d="M50 72V84M33 86H67" stroke="${dark}" stroke-width="6" stroke-linecap="round"/><path d="M40 72H60" stroke="${color}" stroke-width="4" stroke-linecap="round"/>`;
  if(def.visual==="window") body=`<rect x="5" y="30" width="90" height="40" rx="3" fill="#eaf6fb" stroke="${color}" stroke-width="4"/><path d="M50 31V69M9 50H91M14 36L42 64M58 36L86 64" stroke="${color}" stroke-width="2" opacity=".72"/>`;
  if(def.visual==="shower") body=`<rect x="12" y="12" width="76" height="76" rx="10" fill="${color}" opacity=".2" stroke="${color}" stroke-width="4"/><circle cx="50" cy="50" r="24" fill="#fff" fill-opacity=".45" stroke="${color}" stroke-width="2"/><circle cx="50" cy="50" r="5" fill="${color}"/><path d="M18 82L82 18M18 18L82 82" stroke="${color}" stroke-width="2" opacity=".58"/>`;
  if(def.visual==="fridge") body=`<rect x="24" y="6" width="52" height="88" rx="5" fill="${color}" opacity=".25" stroke="${color}" stroke-width="4"/><path d="M25 39H75M66 17V32M66 50V83" stroke="${color}" stroke-width="4" stroke-linecap="round"/><path d="M34 16H56M34 51H56" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>`;
@@ -1031,6 +1056,106 @@ function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHi
 function duplicateTextLabel(){if(selType!=="label")return;pushHistory();addTextLabel({left:parseFloat(sel.style.left)+24,top:parseFloat(sel.style.top)+24,text:sel.innerText,rotation:num(sel.dataset.rot,0),fontSize:num(sel.dataset.fs,22),visible:isLayerVisible(sel)})}
 function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=sel.dataset.rot;labelDeg.innerText=sel.dataset.rot}
 labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){sel.dataset.rot=e.target.value;sel.style.transform=`rotate(${e.target.value}deg)`;labelDeg.innerText=e.target.value}}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+function footnoteState(el){
+ return {left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,240),height:num(el.dataset.height,160),title:el.dataset.title||"Сноска "+(el.dataset.index||""),text:el.dataset.text||"",fontSize:num(el.dataset.fontSize,14),format:el.dataset.format||"paragraphs",visible:isLayerVisible(el)};
+}
+function formattedFootnoteHTML(text,format){
+ const raw=String(text||"").trim();
+ if(!raw)return "<p>Комментарий по коррекциям</p>";
+ if(format==="numbered"){
+  return raw.split(/\n+/).map(line=>line.trim()).filter(Boolean).map((line,index)=>`<p>${index+1}. ${esc(line)}</p>`).join("");
+ }
+ if(format==="bullets"){
+  return raw.split(/\n+/).map(line=>line.trim()).filter(Boolean).map(line=>`<p>• ${esc(line)}</p>`).join("");
+ }
+ return raw.split(/\n{2,}/).map(block=>`<p>${esc(block.trim()).replaceAll("\n","<br>")}</p>`).join("");
+}
+function fitFootnoteText(el){
+ requestAnimationFrame(()=>{
+  if(!el.isConnected)return;
+  const body=el.querySelector(".footnote-body");
+  if(!body)return;
+  let size=num(el.dataset.fontSize,14);
+  body.style.fontSize=size+"px";
+  body.style.lineHeight="1.38";
+  while(size>9&&(body.scrollHeight>body.clientHeight+1||body.scrollWidth>body.clientWidth+1)){
+   size-=.5;
+   body.style.fontSize=size+"px";
+  }
+ });
+}
+function updateFootnote(el){
+ const data=footnoteState(el);
+ el.dataset.width=data.width;el.dataset.height=data.height;
+ el.style.width=data.width+"px";el.style.height=data.height+"px";
+ el.querySelector(".footnote-title").innerText=data.title||"Сноска";
+ el.querySelector(".footnote-body").innerHTML=formattedFootnoteHTML(data.text,data.format);
+ fitFootnoteText(el);
+}
+function addFootnote(d={}){
+ if(!isRestoring&&Object.keys(d).length===0)pushHistory();
+ footnoteCounter++;
+ const wrap=document.createElement("div");
+ const width=d.width??240,height=d.height??160;
+ wrap.className="footnote";
+ wrap.dataset.index=footnoteCounter;
+ wrap.dataset.title=d.title||"Сноска "+footnoteCounter;
+ wrap.dataset.text=d.text||"";
+ wrap.dataset.fontSize=d.fontSize??14;
+ wrap.dataset.format=d.format||"paragraphs";
+ wrap.dataset.width=width;wrap.dataset.height=height;
+ wrap.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
+ const place=defaultPlacement(width,height,footnoteCounter-1);
+ wrap.style.left=(d.left??place.left)+"px";wrap.style.top=(d.top??place.top)+"px";
+ const header=document.createElement("div");header.className="footnote-header";
+ const title=document.createElement("span");title.className="footnote-title";header.appendChild(title);
+ const body=document.createElement("div");body.className="footnote-body";
+ wrap.append(header,body);
+ ["nw","n","ne","e","se","s","sw","w"].forEach(pos=>{const h=document.createElement("div");h.className="footnote-handle "+pos;h.onmousedown=startFootnoteResize;h.ontouchstart=startFootnoteResize;wrap.appendChild(h)});
+ prepGeneric(wrap,"footnote");canvas.appendChild(wrap);updateFootnote(wrap);applyLayerVisibility(wrap,"footnote");select(wrap,"footnote");
+}
+function duplicateFootnote(){
+ if(selType!=="footnote")return;
+ pushHistory();
+ const data=footnoteState(sel);
+ data.left+=24;data.top+=24;data.title=data.title+" копия";
+ addFootnote(data);
+}
+function updFootnotePanel(){
+ if(selType!=="footnote")return;
+ const data=footnoteState(sel);
+ footnoteTitle.value=data.title;footnoteText.value=data.text;footnoteFormat.value=data.format;
+ footnoteFontSize.value=data.fontSize;footnoteFontTxt.innerText=data.fontSize;
+ footnoteWidth.value=Math.round(data.width);footnoteHeight.value=Math.round(data.height);
+}
+function updateFootnoteDimensions(width,height){
+ if(selType!=="footnote")return;
+ sel.dataset.width=clamp(num(width,240),120,900);
+ sel.dataset.height=clamp(num(height,160),80,700);
+ updateFootnote(sel);updFootnotePanel();
+}
+function startFootnoteResize(e){
+ e.preventDefault();e.stopPropagation();
+ const el=e.target.closest(".footnote");
+ select(el,"footnote");
+ pushHistory();
+ const p=point(e);
+ const handle=[...e.target.classList].find(c=>["nw","n","ne","e","se","s","sw","w"].includes(c))||"se";
+ drag={type:"footnote-resize",el,handle,x:p.x,y:p.y,w:el.offsetWidth,h:el.offsetHeight,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};
+ bind();
+}
+footnoteTitle.onfocus=()=>pushHistory();
+footnoteTitle.oninput=e=>{if(selType!=="footnote")return;sel.dataset.title=e.target.value||"Сноска";updateFootnote(sel);refreshLayers()};
+footnoteText.onfocus=()=>pushHistory();
+footnoteText.oninput=e=>{if(selType!=="footnote")return;sel.dataset.text=e.target.value;updateFootnote(sel);};
+footnoteFormat.onchange=e=>{if(selType!=="footnote")return;pushHistory();sel.dataset.format=e.target.value;updateFootnote(sel);};
+footnoteFontSize.onfocus=()=>pushHistory();
+footnoteFontSize.oninput=e=>{if(selType!=="footnote")return;sel.dataset.fontSize=e.target.value;footnoteFontTxt.innerText=e.target.value;updateFootnote(sel);};
+footnoteWidth.onfocus=()=>pushHistory();
+footnoteWidth.oninput=e=>{if(selType==="footnote")updateFootnoteDimensions(e.target.value,sel.dataset.height)};
+footnoteHeight.onfocus=()=>pushHistory();
+footnoteHeight.oninput=e=>{if(selType==="footnote")updateFootnoteDimensions(sel.dataset.width,e.target.value)};
 function workingAreaCenter(){
  const selectedGrid=selType==="grid"&&sel&&isLayerVisible(sel)?sel:null;
  const grid=selectedGrid||document.querySelector(".vastu-grid:not([hidden])");
@@ -1070,21 +1195,39 @@ function addSticker(color,d={}){
  prepGeneric(s,"sticker");canvas.appendChild(s);applyLayerVisibility(s,"sticker");select(s,"sticker");
 }
 function resizeSticker(n){if(selType!="sticker")return;pushHistory();let sz=Math.max(12,(+sel.dataset.size||38)+n*4);sel.dataset.size=sz;sel.style.fontSize=sz+"px"}
-function addAxes(){
- if(document.querySelector(".axis-group")) return;
- if(!isRestoring) pushHistory();
+function duplicateSticker(){
+ if(selType!="sticker")return;
+ pushHistory();
+ addSticker(sel.dataset.color,{left:parseFloat(sel.style.left)+24,top:parseFloat(sel.style.top)+24,color:sel.dataset.color,size:num(sel.dataset.size,38),visible:true});
+}
+const MAX_AXIS_GROUPS=2;
+function currentAxis(){return selType==="axis"?sel:null}
+function addAxes(d={}){
+ const existing=[...document.querySelectorAll(".axis-group")];
+ if(!isRestoring&&Object.keys(d).length===0&&existing.length>=MAX_AXIS_GROUPS){
+  alert("Можно добавить до двух наборов осей.");
+  select(existing[existing.length-1],"axis");
+  return;
+ }
+ if(!isRestoring&&Object.keys(d).length===0) pushHistory();
+ axisCounter++;
+ const len=num(d.len,1800);
+ const anchor=workingAreaCenter();
  let wrap=document.createElement("div");
  wrap.className="axis-group axis";
- wrap.dataset.locked="false";
- wrap.dataset.visible="true";
- wrap.dataset.len="1800";
- wrap.dataset.opacity="100";
- wrap.style.left="-100px";
- wrap.style.top="600px";
- wrap.style.width="1800px";
+ wrap.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";
+ wrap.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
+ wrap.dataset.len=len;
+ wrap.dataset.opacity=d.opacity??100;
+ wrap.dataset.rotation=d.rotation??0;
+ wrap.dataset.axisIndex=d.axisIndex??axisCounter;
+ wrap.style.left=(d.left??Math.round(anchor.x-len/2))+"px";
+ wrap.style.top=(d.top??Math.round(anchor.y))+"px";
+ wrap.style.width=len+"px";
  wrap.style.height="2px";
  wrap.style.background="transparent";
- wrap.style.transform="none";
+ wrap.style.transform=`rotate(${wrap.dataset.rotation}deg)`;
+ wrap.classList.toggle("locked",wrap.dataset.locked==="true");
  [90,0,45,135].forEach(rot=>{
    let a=document.createElement("div");
    a.className="axis-line";
@@ -1092,11 +1235,11 @@ function addAxes(){
    a.style.position="absolute";
    a.style.left="0";
    a.style.top="0";
-   a.style.width="1800px";
+   a.style.width=len+"px";
    a.style.height="2px";
    a.style.background="#111";
    a.style.opacity="1";
-   a.style.transformOrigin="900px center";
+   a.style.transformOrigin=(len/2)+"px center";
    a.style.transform=`rotate(${rot}deg)`;
    wrap.appendChild(a);
  });
@@ -1104,6 +1247,7 @@ function addAxes(){
  wrap.ontouchstart=startAxisDrag;
  wrap.onclick=e=>{e.stopPropagation();select(wrap,"axis")};
  canvas.appendChild(wrap);
+ updateAxisVisual(wrap);
  applyLayerVisibility(wrap,"axis");
  select(wrap,"axis");
 }
@@ -1112,6 +1256,8 @@ function updateAxisVisual(g){
  const len=+g.dataset.len||1800;
  const op=(+g.dataset.opacity||100)/100;
  g.style.width=len+"px";
+ g.style.transform=`rotate(${g.dataset.rotation||0}deg)`;
+ g.classList.toggle("locked",g.dataset.locked==="true");
  g.querySelectorAll(".axis-line").forEach(line=>{
    line.style.width=len+"px";
    line.style.transformOrigin=(len/2)+"px center";
@@ -1121,15 +1267,65 @@ function updateAxisVisual(g){
 function updAxisPanel(){
  if(selType!=="axis") return;
  lockAxes.checked=sel.dataset.locked==="true";
+ axisRot.value=Math.round(+sel.dataset.rotation||0);
+ axisRotTxt.innerText=axisRot.value;
  axisLen.value=sel.dataset.len||1800;
  axisLenTxt.innerText=sel.dataset.len||1800;
  axisOp.value=sel.dataset.opacity||100;
  axisOpTxt.innerText=sel.dataset.opacity||100;
 }
+function brahmasthanCenter(){
+ const selectedGrid=selType==="grid"&&sel&&isLayerVisible(sel)?sel:null;
+ const grid=selectedGrid||document.querySelector(".vastu-grid:not([hidden])");
+ if(!grid)return null;
+ return{
+  x:parseFloat(grid.style.left)+grid.offsetWidth/2,
+  y:parseFloat(grid.style.top)+grid.offsetHeight/2
+ };
+}
+function centerAxisOnBrahmasthan(){
+ const g=currentAxis();
+ if(!g)return;
+ if(g.dataset.locked==="true"){updAxisPanel();return;}
+ const center=brahmasthanCenter();
+ if(!center){alert("Сначала добавьте сетку 3x3: центр Брахмастана берётся из её центральной ячейки.");return;}
+ pushHistory();
+ const len=num(g.dataset.len,1800);
+ g.style.left=(center.x-len/2)+"px";
+ g.style.top=center.y+"px";
+ updateAxisVisual(g);
+ refreshLayers();
+}
+function setAxisRot(value){
+ const g=currentAxis();
+ if(!g||g.dataset.locked==="true"){updAxisPanel();return;}
+ const rotation=nd(value);
+ g.dataset.rotation=rotation;
+ updateAxisVisual(g);
+ updAxisPanel();
+}
+function stepAxisRot(delta){
+ if(selType!=="axis")return;
+ pushHistory();
+ setAxisRot((+axisRot.value||0)+delta);
+}
+function setAxisLength(value){
+ const g=currentAxis();
+ if(!g||g.dataset.locked==="true"){updAxisPanel();return;}
+ const oldLen=num(g.dataset.len,1800);
+ const newLen=Math.max(200,Math.min(2400,+value||oldLen));
+ const center=parseFloat(g.style.left)+oldLen/2;
+ g.dataset.len=newLen;
+ g.style.left=(center-newLen/2)+"px";
+ axisLenTxt.innerText=newLen;
+ updateAxisVisual(g);
+}
+axisRot.onfocus=()=>pushHistory();
+axisRot.oninput=e=>setAxisRot(e.target.value);
 axisLen.onfocus=()=>pushHistory();
-axisLen.oninput=e=>{const g=document.querySelector(".axis-group");if(!g)return;g.dataset.len=e.target.value;axisLenTxt.innerText=e.target.value;updateAxisVisual(g);};
+axisLen.oninput=e=>setAxisLength(e.target.value);
 axisOp.onfocus=()=>pushHistory();
-axisOp.oninput=e=>{const g=document.querySelector(".axis-group");if(!g)return;g.dataset.opacity=e.target.value;axisOpTxt.innerText=e.target.value;updateAxisVisual(g);};
+axisOp.oninput=e=>{const g=currentAxis();if(!g)return;g.dataset.opacity=e.target.value;axisOpTxt.innerText=e.target.value;updateAxisVisual(g);};
 function addAxis(d={}){}
 
 function startAxisDrag(e){
@@ -1143,16 +1339,22 @@ function startAxisDrag(e){
  drag={type:"generic",el:wrap,x:p.x,y:p.y,l:parseFloat(wrap.style.left),t:parseFloat(wrap.style.top)};
  bind();
 }
-lockAxes.onchange=e=>{const g=document.querySelector(".axis-group"); if(g){pushHistory();g.dataset.locked=e.target.checked?"true":"false";refreshLayers()}};
+lockAxes.onchange=e=>{const g=currentAxis(); if(g){pushHistory();g.dataset.locked=e.target.checked?"true":"false";g.classList.toggle("locked",e.target.checked);refreshLayers()}};
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
 function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove();refreshAllCorrectionCaptionGroups()}clearSel()}canvas.onclick=clearSel;
-function collect(){let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));let axes=[]; const ag=document.querySelector(".axis-group"); if(ag){axes=[{left:parseFloat(ag.style.left),top:parseFloat(ag.style.top),locked:ag.dataset.locked||"false",visible:isLayerVisible(ag),len:num(ag.dataset.len,1800),opacity:num(ag.dataset.opacity,100)}]};
-let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
-let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
-let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
-let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
-return{version:"4.2",planImageData:planData,planVisible:isLayerVisible(plan),planRotation:num(planRot.value,0),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,stickers,axes,overlays,purushas,corrections,correctionGroups:groups}}
+function collect(){
+ let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));
+ let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));
+ let footnotes=[...document.querySelectorAll(".footnote")].map(footnoteState);
+ let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));
+ let axes=[...document.querySelectorAll(".axis-group")].map(a=>({left:parseFloat(a.style.left),top:parseFloat(a.style.top),locked:a.dataset.locked||"false",visible:isLayerVisible(a),len:num(a.dataset.len,1800),opacity:num(a.dataset.opacity,100),rotation:num(a.dataset.rotation,0),axisIndex:num(a.dataset.axisIndex,1)}));
+ let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
+ let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
+ let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
+ let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
+ return{version:"4.3",planImageData:planData,planVisible:isLayerVisible(plan),planRotation:num(planRot.value,0),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,footnotes,stickers,axes,overlays,purushas,corrections,correctionGroups:groups};
+}
 function cleanFileBaseName(value,fallback){
  const cleaned=String(value||"").trim().replace(/\.(json|png|pdf)$/i,"").replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim();
  return cleaned||fallback;
@@ -1161,6 +1363,10 @@ function askFileBaseName(message,fallback){
  const value=window.prompt(message,fallback);
  return value===null?null:cleanFileBaseName(value,fallback);
 }
+function pngExportScale(){
+ const value=typeof pngQuality!=="undefined"?pngQuality.value:1;
+ return Math.max(1,Math.min(3,Number(value)||1));
+}
 function saveProject(){
  const name=askFileBaseName("Название файла проекта",projectBaseName);
  if(!name)return;
@@ -1168,7 +1374,7 @@ function saveProject(){
  download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),name+".json");
 }
 projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;projectBaseName=cleanFileBaseName(f.name,projectBaseName);let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
-function loadProject(p){document.querySelectorAll(".vastu-grid,.text-label,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());clearSel();planData=p.planImageData||"";if(planData)plan.src=planData;else plan.removeAttribute("src");plan.dataset.visible=p.planVisible===false?"false":"true";applyLayerVisibility(plan,"plan");planOpacity.value=p.planOpacity??85;planOpacityTxt.innerText=planOpacity.value;plan.style.opacity=planOpacity.value/100;lastPlanRot=0;setPlanRot(p.planRotation??0);zoomLevel=p.zoomLevel??1;applyZoom();initCorrectionGroups(p.correctionGroups||{});renderCorrectionLibrary(correctionSearch.value);(p.grids||[]).forEach(addGrid);(p.labels||[]).forEach(addTextLabel);(p.stickers||[]).forEach(s=>addSticker(s.color,s));(p.axes||[]).forEach(ax=>{addAxes(); const g=document.querySelector(".axis-group"); if(g){g.style.left=ax.left+"px"; g.style.top=ax.top+"px"; g.dataset.locked=ax.locked||"false";g.dataset.visible=ax.visible===false||ax.visible==="false"?"false":"true"; g.dataset.len=ax.len??1800; g.dataset.opacity=ax.opacity??100; lockAxes.checked=g.dataset.locked==="true"; updateAxisVisual(g);applyLayerVisibility(g,"axis");}});(p.overlays||[]).forEach(addOverlayImage);(p.purushas||[]).forEach(addPurushaGrid);(p.corrections||[]).forEach(o=>addCorrection(o.category,o.item,o));applyCorrectionGroups()}
+function loadProject(p){document.querySelectorAll(".vastu-grid,.text-label,.footnote,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());clearSel();planData=p.planImageData||"";if(planData)plan.src=planData;else plan.removeAttribute("src");plan.dataset.visible=p.planVisible===false?"false":"true";applyLayerVisibility(plan,"plan");planOpacity.value=p.planOpacity??85;planOpacityTxt.innerText=planOpacity.value;plan.style.opacity=planOpacity.value/100;lastPlanRot=0;setPlanRot(p.planRotation??0);zoomLevel=p.zoomLevel??1;applyZoom();initCorrectionGroups(p.correctionGroups||{});renderCorrectionLibrary(correctionSearch.value);(p.grids||[]).forEach(addGrid);(p.labels||[]).forEach(addTextLabel);(p.footnotes||[]).forEach(addFootnote);(p.stickers||[]).forEach(s=>addSticker(s.color,s));(p.axes||[]).slice(0,MAX_AXIS_GROUPS).forEach(addAxes);(p.overlays||[]).forEach(addOverlayImage);(p.purushas||[]).forEach(addPurushaGrid);(p.corrections||[]).forEach(o=>addCorrection(o.category,o.item,o));applyCorrectionGroups()}
 async function exportPDF(){
  const name=askFileBaseName("Название PDF-файла",exportBaseName);
  if(!name)return;
@@ -1184,7 +1390,7 @@ function download(blob,name){let a=document.createElement("a");a.href=URL.create
 async function exportPNG(){
  const name=askFileBaseName("Название PNG-файла",exportBaseName);
  if(!name)return;
- try{exportBaseName=name;await html2canvasLike(name+".png")}catch(err){alert("Не удалось создать PNG. Проверь, что страница загружена полностью.")}
+ try{exportBaseName=name;await html2canvasLike(name+".png",pngExportScale())}catch(err){alert("Не удалось создать PNG. Проверь, что страница загружена полностью.")}
 }
 async function asDataURL(src){
  if(!src||src.startsWith("data:"))return src;
@@ -1225,6 +1431,7 @@ function exportArea(p,planFrame,labels=[]){
   if(o.visible!==false&&group.visible)includeExportRect(bounds,o.left,o.top,o.width,o.height+(o.showCaption===false?0:20),o.rotation);
  });
  (p.labels||[]).forEach(l=>{if(l.visible!==false)includeExportRect(bounds,l.left,l.top,Math.max(20,l.text.length*l.fontSize*.62),l.fontSize*1.35,l.rotation)});
+ (p.footnotes||[]).forEach(n=>{if(n.visible!==false)includeExportRect(bounds,n.left,n.top,n.width,n.height)});
  (p.stickers||[]).forEach(s=>{if(s.visible!==false)includeExportRect(bounds,s.left,s.top,s.size,s.size)});
  labels.forEach(label=>includeExportRect(bounds,label.x,label.y,label.width,label.height,label.rotation||0));
  if(!Number.isFinite(bounds.left))return{left:0,top:0,width:1600,height:1200};
@@ -1342,7 +1549,48 @@ function exportLabelSVG(label){
  const tspans=label.lines.map((lineText,index)=>`<tspan x="${textX}" dy="${index?label.lineHeight:0}">${esc(lineText)}</tspan>`).join("");
  return `${lines}<g opacity="${Math.min(1,Math.max(.25,label.opacity))}" transform="rotate(${label.rotation||0} ${cx} ${cy})"><rect x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="8" fill="#fff" fill-opacity=".9" stroke="#d7d0c6" stroke-width="1"/><text x="${textX}" y="${textY}" text-anchor="middle" font-size="${label.fontSize}" font-weight="600" fill="#3f3d38">${tspans}</text></g>`;
 }
-async function renderExportCanvas(){
+function footnoteExportItems(note){
+ const raw=String(note.text||"").trim();
+ if(!raw)return["Комментарий по коррекциям"];
+ if(note.format==="numbered")return raw.split(/\n+/).map(line=>line.trim()).filter(Boolean).map((line,index)=>`${index+1}. ${line}`);
+ if(note.format==="bullets")return raw.split(/\n+/).map(line=>line.trim()).filter(Boolean).map(line=>`• ${line}`);
+ return raw.split(/\n{2,}/).flatMap((block,index,blocks)=>{
+  const lines=block.split(/\n/).map(line=>line.trim()).filter(Boolean);
+  return index<blocks.length-1?[...lines,""]:lines;
+ });
+}
+function wrapFootnoteLine(text,maxWidth,fontSize){
+ const words=String(text).split(/\s+/).filter(Boolean),lines=[];
+ let line="";
+ words.forEach(word=>{
+  const next=line?line+" "+word:word;
+  if(exportTextWidth(next,fontSize)<=maxWidth||!line)line=next;
+  else{lines.push(line);line=word;}
+ });
+ if(line)lines.push(line);
+ return lines.length?lines:[""];
+}
+function footnoteExportLayout(note){
+ const padX=14,padTop=45,padBottom=14,maxWidth=Math.max(20,note.width-padX*2),bodyHeight=Math.max(20,note.height-padTop-padBottom);
+ let fontSize=num(note.fontSize,14),lines=[],lineHeight=fontSize*1.38;
+ while(fontSize>=9){
+  lines=footnoteExportItems(note).flatMap(item=>item===""?[""]:wrapFootnoteLine(item,maxWidth,fontSize));
+  lineHeight=fontSize*1.38;
+  if(lines.length*lineHeight<=bodyHeight+1)break;
+  fontSize-=.5;
+ }
+ return{padX,padTop,padBottom,fontSize,lineHeight,lines};
+}
+function exportFootnoteSVG(note){
+ if(note.visible===false)return"";
+ const x=note.left,y=note.top,w=note.width,h=note.height,layout=footnoteExportLayout(note);
+ const shadow=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="#2f2b24" opacity=".10" transform="translate(0 12)"/>`;
+ const title=esc(note.title||"Сноска");
+ const body=layout.lines.map((line,index)=>`<tspan x="${x+layout.padX}" dy="${index?layout.lineHeight:0}">${esc(line)}</tspan>`).join("");
+ return `${shadow}<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="#fff" fill-opacity=".92" stroke="#d2ccc3"/><path d="M${x} ${y+34}H${x+w}" stroke="#dad5cd"/><path d="M${x+18} ${y}H${x+w-18}Q${x+w} ${y} ${x+w} ${y+18}V${y+34}H${x}V${y+18}Q${x} ${y} ${x+18} ${y}Z" fill="#f4f1ec" fill-opacity=".88"/><text x="${x+14}" y="${y+22}" font-size="13" font-weight="700" fill="#302f2b">${title}</text><text x="${x+layout.padX}" y="${y+layout.padTop}" font-size="${layout.fontSize}" fill="#302f2b">${body}</text></g>`;
+}
+async function renderExportCanvas(scale=1){
+ scale=Math.max(1,Math.min(3,Number(scale)||1));
  const result=await buildSVG();
  const img=new Image();
  const url=URL.createObjectURL(new Blob([result.svg],{type:"image/svg+xml"}));
@@ -1353,20 +1601,24 @@ async function renderExportCanvas(){
    img.src=url;
   });
   const c=document.createElement("canvas");
-  c.width=result.width;
-  c.height=result.height;
+  c.width=Math.round(result.width*scale);
+  c.height=Math.round(result.height*scale);
   const ctx=c.getContext("2d");
   ctx.fillStyle="white";
   ctx.fillRect(0,0,c.width,c.height);
-  ctx.drawImage(img,0,0);
+  ctx.drawImage(img,0,0,c.width,c.height);
   return c;
  }finally{
   URL.revokeObjectURL(url);
  }
 }
-async function html2canvasLike(filename="vastu-map.png"){
- const c=await renderExportCanvas();
- await new Promise(resolve=>c.toBlob(blob=>{download(blob,filename);resolve();},"image/png"));
+async function html2canvasLike(filename="vastu-map.png",scale=1){
+ const c=await renderExportCanvas(scale);
+ await new Promise((resolve,reject)=>c.toBlob(blob=>{
+  if(!blob){reject(new Error("PNG canvas is too large"));return;}
+  download(blob,filename);
+  resolve();
+ },"image/png"));
 }
 async function showExportPreview(){
  previewModal.hidden=false;
@@ -1441,8 +1693,8 @@ async function buildSVG(){
  });
  p.axes.forEach(a=>{
   if(a.visible===false)return;
-  const len=a.len,op=a.opacity/100;
-  [90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${rot} ${a.left+len/2} ${a.top})"/>`;});
+  const len=a.len,op=a.opacity/100,base=num(a.rotation,0);
+  [90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${base+rot} ${a.left+len/2} ${a.top})"/>`;});
  });
  (p.corrections||[]).forEach(o=>{
  const group=p.correctionGroups[o.category]||{visible:true,opacity:100};
@@ -1452,11 +1704,12 @@ async function buildSVG(){
  });
  exportLabels.forEach(label=>svg+=exportLabelSVG(label));
  p.labels.forEach(l=>{if(l.visible!==false)svg+=`<text x="${l.left}" y="${l.top+l.fontSize}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top+l.fontSize})">${esc(l.text)}</text>`;});
+ (p.footnotes||[]).forEach(note=>svg+=exportFootnoteSVG(note));
  p.stickers.forEach(s=>{if(s.visible!==false)svg+=`<text x="${s.left}" y="${s.top+s.size*.9}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`;});
  return{svg:svg+"</svg>",width:area.width,height:area.height};
 }
 
-const propertyNames={grid:"Сетка направлений",purusha:"Пуруша-мандала",axis:"Оси направлений",overlay:"Дополнительная картинка",label:"Надпись",sticker:"Метка анализа",correction:"Коррекция",plan:"План квартиры"};
+const propertyNames={grid:"Сетка направлений",purusha:"Пуруша-мандала",axis:"Оси направлений",overlay:"Дополнительная картинка",label:"Надпись",footnote:"Сноска",sticker:"Метка анализа",correction:"Коррекция",plan:"План квартиры"};
 function showProperties(type){
  document.querySelectorAll(".property-group").forEach(group=>group.classList.toggle("active",group.dataset.properties===type));
  propertyTitle.innerText=propertyNames[type]||"Выберите слой";
@@ -1477,7 +1730,7 @@ function refreshLayers(){
  const layers=[{el:plan,type:"plan",name:"План квартиры",detail:planData?"Загружен":"Не загружен",icon:"P",hidden:!isLayerVisible(plan)}];
  document.querySelectorAll(".vastu-grid").forEach((el,i)=>layers.push({el,type:"grid",name:"Сетка направлений",detail:"Сетка "+(i+1),icon:"#",hidden:!isLayerVisible(el)}));
  document.querySelectorAll(".purusha-grid").forEach((el,i)=>layers.push({el,type:"purusha",name:"Пуруша-мандала",detail:"Слой "+(i+1),icon:"M",hidden:!isLayerVisible(el)}));
- document.querySelectorAll(".axis-group").forEach(el=>layers.push({el,type:"axis",name:"Оси",detail:"Направления",icon:"+",hidden:!isLayerVisible(el)}));
+ document.querySelectorAll(".axis-group").forEach((el,i)=>layers.push({el,type:"axis",name:"Оси",detail:"Набор "+(i+1),icon:"+",hidden:!isLayerVisible(el)}));
  document.querySelectorAll(".overlay-wrap").forEach((el,i)=>layers.push({el,type:"overlay",name:"Доп. картинка",detail:"Слой "+(i+1),icon:"I",hidden:!isLayerVisible(el)}));
  document.querySelectorAll(".correction-object").forEach(el=>{
   const def=correctionDefinition(el.dataset.category,el.dataset.item);
@@ -1485,6 +1738,7 @@ function refreshLayers(){
   layers.push({el,type:"correction",name:correctionTitle(correctionState(el),def),detail:correctionDetail(el),icon:"C",hidden:!isLayerVisible(el)||!group.visible,groupHidden:!group.visible});
  });
  document.querySelectorAll(".text-label").forEach((el,i)=>layers.push({el,type:"label",name:"Надпись",detail:"Текст "+(i+1),icon:"T",hidden:!isLayerVisible(el)}));
+ document.querySelectorAll(".footnote").forEach((el,i)=>layers.push({el,type:"footnote",name:el.dataset.title||"Сноска",detail:"Сноска "+(i+1),icon:"N",hidden:!isLayerVisible(el)}));
  document.querySelectorAll(".sticker").forEach((el,i)=>layers.push({el,type:"sticker",name:el.dataset.color==="green"?"Ресурс":"Проблема",detail:"Метка "+(i+1),icon:"*",hidden:!isLayerVisible(el)}));
  layers.forEach(layer=>{
   const button=document.createElement("button");
@@ -1680,8 +1934,13 @@ function move(e){
 
  if(drag.type=="drag"||drag.type=="generic"){
    if(drag.el.classList&&drag.el.classList.contains("vastu-grid")&&drag.el.dataset.locked==="true")return;
-   drag.el.style.left=drag.l+(p.x-drag.x)+"px";
-   drag.el.style.top=drag.t+(p.y-drag.y)+"px";
+   let left=drag.l+(p.x-drag.x),top=drag.t+(p.y-drag.y);
+   if(drag.el.classList?.contains("footnote")){
+     left=clamp(left,0,1600-drag.el.offsetWidth);
+     top=clamp(top,0,1200-drag.el.offsetHeight);
+   }
+   drag.el.style.left=left+"px";
+   drag.el.style.top=top+"px";
    if(drag.el.classList?.contains("correction-object"))updateCorrectionCaptionPosition(drag.el);
  }
 
@@ -1789,6 +2048,20 @@ function move(e){
    drag.el.dataset.width=Math.round(newW);drag.el.dataset.height=Math.round(newH);
    updateCorrectionArt(drag.el);
    if(drag.el===sel)updCorrectionPanel();
+ }
+
+ if(drag.type=="footnote-resize"){
+   let dx=p.x-drag.x,dy=p.y-drag.y,newW=drag.w,newH=drag.h,newL=drag.l,newT=drag.t;
+   if(drag.handle.includes("e"))newW=Math.max(120,drag.w+dx);
+   if(drag.handle.includes("s"))newH=Math.max(80,drag.h+dy);
+   if(drag.handle.includes("w")){newW=Math.max(120,drag.w-dx);newL=drag.l+(drag.w-newW);}
+   if(drag.handle.includes("n")){newH=Math.max(80,drag.h-dy);newT=drag.t+(drag.h-newH);}
+   newW=Math.min(newW,900);newH=Math.min(newH,700);
+   newL=clamp(newL,0,1600-newW);newT=clamp(newT,0,1200-newH);
+   drag.el.style.left=newL+"px";drag.el.style.top=newT+"px";
+   drag.el.dataset.width=Math.round(newW);drag.el.dataset.height=Math.round(newH);
+   updateFootnote(drag.el);
+   if(drag.el===sel)updFootnotePanel();
  }
 
  if(drag.type=="rot"){
