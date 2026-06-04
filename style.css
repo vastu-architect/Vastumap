@@ -187,6 +187,77 @@ input[type=number],input:not([type]),#labelText,select{
   border:1px solid var(--line);
 }
 
+@media (max-width:1450px){
+  .app-header{
+    display:grid;
+    grid-template-columns:1fr;
+    align-items:start;
+    gap:8px;
+    padding:8px 16px 10px;
+  }
+
+  .brand{
+    gap:9px;
+  }
+
+  .brand-mark{
+    width:30px;
+    height:30px;
+    border-radius:9px;
+  }
+
+  .brand h1{
+    font-size:22px;
+  }
+
+  .brand p{
+    display:none;
+  }
+
+  .project-actions{
+    width:100%;
+    justify-content:flex-start;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding-bottom:3px;
+    scrollbar-width:thin;
+  }
+
+  .project-actions::-webkit-scrollbar{
+    height:5px;
+  }
+
+  .project-actions::-webkit-scrollbar-thumb{
+    background:#d6d0c4;
+    border-radius:999px;
+  }
+
+  .action,.png-quality{
+    min-height:36px;
+    font-size:12px;
+  }
+
+  .action{
+    padding:9px 12px;
+  }
+
+  .png-quality{
+    padding:0 9px;
+  }
+
+  .icon-action{
+    width:36px;
+    height:36px;
+    font-size:18px;
+  }
+
+  .divider{
+    height:22px;
+    margin:0 2px;
+  }
+}
+
 .layout{
   flex:1 1 auto;
   min-height:0;
