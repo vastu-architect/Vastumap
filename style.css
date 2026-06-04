@@ -22,6 +22,8 @@ body{
   margin:0;
   height:100vh;
   overflow:hidden;
+  display:flex;
+  flex-direction:column;
   color:var(--text);
   background:var(--bg);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
@@ -66,7 +68,7 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .app-header{
-  height:72px;
+  min-height:72px;
   padding:12px 22px;
   display:flex;
   align-items:center;
@@ -83,6 +85,7 @@ input[type=number],input:not([type]),#labelText,select{
   display:flex;
   align-items:center;
   gap:12px;
+  flex:0 0 auto;
   white-space:nowrap;
 }
 
@@ -117,6 +120,8 @@ input[type=number],input:not([type]),#labelText,select{
   align-items:center;
   justify-content:flex-end;
   flex-wrap:wrap;
+  flex:1 1 auto;
+  min-width:0;
 }
 
 .action{
@@ -183,7 +188,8 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .layout{
-  height:calc(100vh - 72px);
+  flex:1 1 auto;
+  min-height:0;
   display:grid;
   grid-template-columns:248px minmax(460px,1fr) 326px;
 }

@@ -19,6 +19,7 @@
     <nav class="project-actions" aria-label="Проект">
       <label class="action primary file-action">Загрузить план<input type="file" accept="image/*" id="imageInput"></label>
       <label class="action file-action">Открыть проект<input type="file" accept=".json" id="projectInput"></label>
+      <button class="action" onclick="restoreAutosave()">Восстановить</button>
       <button class="action" onclick="saveProject()">Сохранить</button>
       <span class="divider"></span>
       <button class="icon-action" title="Отмена" onclick="undoLast()">&#8630;</button>
@@ -103,7 +104,7 @@
       <footer class="statusbar">
         <span>Проект: новый анализ</span>
         <span class="status-ready">Сетка готова к настройке</span>
-        <span>Сохранение в JSON</span>
+        <span id="autosaveStatus">Автосохранение готово</span>
       </footer>
     </section>
 

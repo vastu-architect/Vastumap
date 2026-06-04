@@ -2,7 +2,9 @@ let sel=null,selType="",gridCounter=0,labelCounter=0,footnoteCounter=0,stickerCo
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
 plan.dataset.visible="true";
 const PROJECT_VERSION="4.4";
+const AUTOSAVE_KEY="vastu-studio-autosave-v1";
 let planDataRefCounter=0;
+let autosaveTimer=null,autosavePaused=false;
 const planDataRefs=new Map();
 const planDataIds=new Map();
 const names=["Северо-Запад","Север","Северо-Восток","Запад","Брахмастан","Восток","Юго-Запад","Юг","Юго-Восток"];
@@ -62,6 +64,51 @@ function setAllLayersVisibility(visible){
 }
 function hideAllLayers(){setAllLayersVisibility(false)}
 function showAllLayers(){setAllLayersVisibility(true)}
+function setAutosaveStatus(text){
+ const el=document.getElementById("autosaveStatus");
+ if(el)el.innerText=text;
+}
+function autosaveLabel(date){
+ return date.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+}
+function getAutosaveRaw(){
+ try{return localStorage.getItem(AUTOSAVE_KEY)}catch(e){return null}
+}
+function runAutosave(){
+ if(autosavePaused)return;
+ try{
+  localStorage.setItem(AUTOSAVE_KEY,JSON.stringify({savedAt:new Date().toISOString(),project:collect()}));
+  setAutosaveStatus("Автосохранено "+autosaveLabel(new Date()));
+ }catch(e){
+  setAutosaveStatus("Автосохранение недоступно: проект большой");
+ }
+}
+function scheduleAutosave(){
+ if(isRestoring||autosavePaused)return;
+ clearTimeout(autosaveTimer);
+ setAutosaveStatus("Автосохранение...");
+ autosaveTimer=setTimeout(runAutosave,900);
+}
+function restoreAutosave(){
+ const raw=getAutosaveRaw();
+ if(!raw){alert("Автосохранений пока нет.");return;}
+ try{
+  const payload=JSON.parse(raw);
+  if(!payload.project)throw new Error("Empty autosave");
+  pushHistory();
+  autosavePaused=true;
+  isRestoring=true;
+  loadProject(payload.project);
+  isRestoring=false;
+  autosavePaused=false;
+  const savedAt=payload.savedAt?new Date(payload.savedAt):null;
+  setAutosaveStatus(savedAt&&!Number.isNaN(savedAt.getTime())?"Восстановлено "+autosaveLabel(savedAt):"Восстановлено автосохранение");
+ }catch(e){
+  isRestoring=false;
+  autosavePaused=false;
+  alert("Не удалось восстановить автосохранение.");
+ }
+}
 function historySnapshot(){return JSON.stringify(collect({includePlanData:false}))}
 function pushHistory(){
  if(isRestoring) return;
@@ -70,6 +117,7 @@ function pushHistory(){
   if(historyStack[historyStack.length-1]!==state) historyStack.push(state);
   if(historyStack.length>30) historyStack.shift();
   redoStack=[];
+  scheduleAutosave();
  } catch(e) {}
 }
 function undoLast(){
@@ -95,8 +143,8 @@ function toggleCorrectionFocus(){
  const active=document.body.classList.toggle("correction-focus");
  if(typeof focusModeBtn!=="undefined")focusModeBtn.innerText=active?"Фокус: вкл":"Фокус: выкл";
 }
-imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{planData=x.target.result;plan.src=planData;selectPlan()};r.readAsDataURL(f)}
-overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>addOverlayImage({src:x.target.result});r.readAsDataURL(f)}
+imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{planData=x.target.result;plan.src=planData;selectPlan();scheduleAutosave()};r.readAsDataURL(f)}
+overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{addOverlayImage({src:x.target.result});scheduleAutosave()};r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.onfocus=()=>pushHistory();planOpacity.oninput=e=>{plan.style.opacity=e.target.value/100;planOpacityTxt.innerText=e.target.value};
 function setPlanRot(v){
  let n=nd(v),delta=n-lastPlanRot;
@@ -245,7 +293,7 @@ function startDrag(e){
  pushHistory();
  let p=point(e);drag={type:"drag",el:g,x:p.x,y:p.y,l:parseFloat(g.style.left),t:parseFloat(g.style.top)};bind()}
 function startRot(e){e.preventDefault();e.stopPropagation();let g=e.target.closest(".vastu-grid");select(g,"grid");if(g.dataset.locked==="true"){drag=null;return;}pushHistory();drag={type:"rot",el:g,cx:parseFloat(g.style.left)+g.offsetWidth/2,cy:parseFloat(g.style.top)+g.offsetHeight/2};bind()}
-function stop(){const finished=drag;drag=null;document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",stop);document.removeEventListener("touchmove",move);document.removeEventListener("touchend",stop);if(finished?.type==="correction-caption")mergeCorrectionCaptionAtDrop(finished.el)}
+function stop(){const finished=drag;drag=null;document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",stop);document.removeEventListener("touchmove",move);document.removeEventListener("touchend",stop);if(finished?.type==="correction-caption")mergeCorrectionCaptionAtDrop(finished.el);if(finished)scheduleAutosave()}
 
 const PURUSHA_GRID_SRC = "purusha-grid.jpg";
 const PURUSHA_DEFAULT_WIDTH = 520;
@@ -1324,7 +1372,7 @@ function saveProject(){
  projectBaseName=name;
  download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),name+".json");
 }
-projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;projectBaseName=cleanFileBaseName(f.name,projectBaseName);let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
+projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;projectBaseName=cleanFileBaseName(f.name,projectBaseName);let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;scheduleAutosave()}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
 function listFromProject(project,key){return Array.isArray(project[key])?project[key]:[]}
 function migrateProject(project={}){
  return{
@@ -1378,6 +1426,9 @@ function loadProject(project){
  restoreProjectItems(p);
  applyCorrectionGroups();
 }
+document.addEventListener("input",scheduleAutosave,true);
+document.addEventListener("change",scheduleAutosave,true);
+setAutosaveStatus(getAutosaveRaw()?"Есть автосохранение":"Автосохранение готово");
 async function exportPDF(){
  const name=askFileBaseName("Название PDF-файла",exportBaseName);
  if(!name)return;
