@@ -4,7 +4,7 @@ plan.dataset.visible="true";
 const PROJECT_VERSION="4.4";
 const AUTOSAVE_KEY="vastu-studio-autosave-v1";
 let planDataRefCounter=0;
-let autosaveTimer=null,autosavePaused=false;
+let autosaveTimer=null,autosavePaused=false,recoveryPending=false;
 const planDataRefs=new Map();
 const planDataIds=new Map();
 const names=["Северо-Запад","Север","Северо-Восток","Запад","Брахмастан","Восток","Юго-Запад","Юг","Юго-Восток"];
@@ -74,68 +74,96 @@ function autosaveLabel(date){
 function getAutosaveRaw(){
  try{return localStorage.getItem(AUTOSAVE_KEY)}catch(e){return null}
 }
+function cancelAutosave(){
+ clearTimeout(autosaveTimer);
+ autosaveTimer=null;
+}
+function showAutosaveRecovery(){
+ const banner=document.getElementById("autosaveRecovery");
+ if(banner)banner.hidden=!recoveryPending;
+}
+function initializeAutosave(){
+ recoveryPending=!!getAutosaveRaw();
+ showAutosaveRecovery();
+ setAutosaveStatus(recoveryPending?"Есть автосохранение — выберите восстановление или текущий проект":"Автосохранение готово");
+}
 function runAutosave(){
- if(autosavePaused)return;
+ cancelAutosave();
+ if(isRestoring||autosavePaused||recoveryPending)return;
  try{
   localStorage.setItem(AUTOSAVE_KEY,JSON.stringify({savedAt:new Date().toISOString(),project:collect()}));
   setAutosaveStatus("Автосохранено "+autosaveLabel(new Date()));
  }catch(e){
-  setAutosaveStatus("Автосохранение недоступно: проект большой");
+  const quota=e.name==="QuotaExceededError"||e.name==="NS_ERROR_DOM_QUOTA_REACHED";
+  setAutosaveStatus(quota?"Нет места для автосохранения. Сохраните проект в файл.":"Автосохранение недоступно. Сохраните проект в файл.");
  }
 }
 function scheduleAutosave(){
- if(isRestoring||autosavePaused)return;
- clearTimeout(autosaveTimer);
+ if(isRestoring||autosavePaused||recoveryPending)return;
+ cancelAutosave();
  setAutosaveStatus("Автосохранение...");
  autosaveTimer=setTimeout(runAutosave,900);
+}
+function flushAutosave(){
+ if(autosaveTimer!==null)runAutosave();
+}
+function continueCurrentProject(){
+ if(!recoveryPending)return;
+ recoveryPending=false;
+ showAutosaveRecovery();
+ runAutosave();
 }
 function restoreAutosave(){
  const raw=getAutosaveRaw();
  if(!raw){alert("Автосохранений пока нет.");return;}
+ const wasPaused=autosavePaused;
+ cancelAutosave();
  try{
   const payload=JSON.parse(raw);
   if(!payload.project)throw new Error("Empty autosave");
-  pushHistory();
+  const previous=historySnapshot();
   autosavePaused=true;
-  isRestoring=true;
   loadProject(payload.project);
-  isRestoring=false;
-  autosavePaused=false;
+  autosavePaused=wasPaused;
+  recoveryPending=false;
+  showAutosaveRecovery();
+  pushHistory(previous);
   const savedAt=payload.savedAt?new Date(payload.savedAt):null;
   setAutosaveStatus(savedAt&&!Number.isNaN(savedAt.getTime())?"Восстановлено "+autosaveLabel(savedAt):"Восстановлено автосохранение");
  }catch(e){
-  isRestoring=false;
-  autosavePaused=false;
   alert("Не удалось восстановить автосохранение.");
+ }finally{
+  autosavePaused=wasPaused;
  }
 }
 function historySnapshot(){return JSON.stringify(collect({includePlanData:false}))}
-function pushHistory(){
+function pushHistory(snapshot){
  if(isRestoring) return;
  try {
-  const state=historySnapshot();
+  const state=typeof snapshot==="string"?snapshot:historySnapshot();
   if(historyStack[historyStack.length-1]!==state) historyStack.push(state);
   if(historyStack.length>30) historyStack.shift();
   redoStack=[];
   scheduleAutosave();
  } catch(e) {}
 }
-function undoLast(){
- if(!historyStack.length){ alert("Нет действия для отмены"); return; }
- try { redoStack.push(historySnapshot()); } catch(e) {}
- const prev=JSON.parse(historyStack.pop());
- isRestoring = true;
- loadProject(prev);
- isRestoring = false;
+function restoreHistory(source,target,emptyMessage){
+ if(!source.length){alert(emptyMessage);return;}
+ cancelAutosave();
+ try{
+  const current=historySnapshot();
+  const next=JSON.parse(source[source.length-1]);
+  loadProject(next);
+  source.pop();
+  target.push(current);
+  if(target.length>30)target.shift();
+  scheduleAutosave();
+ }catch(e){
+  alert("Не удалось восстановить состояние проекта.");
+ }
 }
-function redoLast(){
- if(!redoStack.length){ alert("Нет действия для повтора"); return; }
- try { historyStack.push(historySnapshot()); } catch(e) {}
- const next=JSON.parse(redoStack.pop());
- isRestoring=true;
- loadProject(next);
- isRestoring=false;
-}
+function undoLast(){restoreHistory(historyStack,redoStack,"Нет действия для отмены")}
+function redoLast(){restoreHistory(redoStack,historyStack,"Нет действия для повтора")}
 function applyZoom(){canvas.style.transformOrigin="top center";canvas.style.transform=`scale(${zoomLevel})`;zoomTxt.innerText=Math.round(zoomLevel*100)}
 function zoomAll(delta){pushHistory();zoomLevel=Math.max(0.25,Math.min(3,zoomLevel+delta));applyZoom()}
 function togglePanel(){document.querySelector(".layout").classList.toggle("panel-hidden")}
@@ -191,12 +219,18 @@ function updateGridTypography(grid){
  grid.style.setProperty("--grid-cell-padding",padding+"px");
  return size;
 }
+function allocateGridId(){
+ const used=new Set([...canvas.querySelectorAll(".vastu-grid")].map(grid=>grid.dataset.gridId));
+ let index=gridCounter;
+ while(used.has("grid-"+index))index++;
+ return "grid-"+index;
+}
 function addGrid(d={}){
  if(!isRestoring&&Object.keys(d).length===0)pushHistory();
  gridCounter++;
  const g=document.createElement("div");
  g.className="vastu-grid";
- g.dataset.gridId=d.gridId||("grid-"+gridCounter);
+ g.dataset.gridId=d.gridId||allocateGridId();
  g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
  g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;
  g.classList.toggle("locked",g.dataset.locked==="true");
@@ -1340,15 +1374,25 @@ lockAxes.onchange=e=>{const g=currentAxis(); if(g){pushHistory();g.dataset.locke
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
 function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove();refreshAllCorrectionCaptionGroups()}clearSel()}canvas.onclick=clearSel;
+function storedDimension(el,key,fallback){
+ const styled=parseFloat(el.style[key]);
+ const saved=num(el.dataset[key],0);
+ return styled>0?styled:saved>0?saved:(key==="width"?el.offsetWidth:el.offsetHeight)||fallback;
+}
+function overlayStoredHeight(el,width){
+ const img=el.querySelector("img");
+ if(img?.naturalWidth&&img.naturalHeight)return width*img.naturalHeight/img.naturalWidth;
+ return storedDimension(el,"height",width);
+}
 function collect(options={}){
  const includePlanData=options.includePlanData!==false;
  const currentPlanRef=planDataRef(planData);
- let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({gridId:g.dataset.gridId||"",left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));
+ let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({gridId:g.dataset.gridId||"",left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:storedDimension(g,"width",480),height:storedDimension(g,"height",480),rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));
  let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));
  let footnotes=[...document.querySelectorAll(".footnote")].map(footnoteState);
  let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));
  let axes=[...document.querySelectorAll(".axis-group")].map(a=>({left:parseFloat(a.style.left),top:parseFloat(a.style.top),locked:a.dataset.locked||"false",visible:isLayerVisible(a),len:num(a.dataset.len,1800),opacity:num(a.dataset.opacity,100),rotation:num(a.dataset.rotation,0),axisIndex:num(a.dataset.axisIndex,1),targetGridId:a.dataset.targetGridId||""}));
- let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
+ let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>{const width=storedDimension(o,"width",420);return{left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width,height:overlayStoredHeight(o,width),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}});
  let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
  let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
  let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
@@ -1372,22 +1416,152 @@ function saveProject(){
  projectBaseName=name;
  download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),name+".json");
 }
-projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;projectBaseName=cleanFileBaseName(f.name,projectBaseName);let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;scheduleAutosave()}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
-function listFromProject(project,key){return Array.isArray(project[key])?project[key]:[]}
-function migrateProject(project={}){
- return{
-  ...project,
-  version:project.version||"legacy",
-  grids:listFromProject(project,"grids").map((grid,index)=>({...grid,gridId:grid.gridId||"grid-"+(index+1)})),
-  labels:listFromProject(project,"labels"),
-  footnotes:listFromProject(project,"footnotes"),
-  stickers:listFromProject(project,"stickers"),
-  axes:listFromProject(project,"axes").slice(0,MAX_AXIS_GROUPS),
-  overlays:listFromProject(project,"overlays"),
-  purushas:listFromProject(project,"purushas"),
-  corrections:listFromProject(project,"corrections"),
-  correctionGroups:project.correctionGroups||{}
+projectInput.onchange=e=>{
+ const file=e.target.files[0];
+ if(!file)return;
+ const reader=new FileReader();
+ reader.onload=event=>{
+  try{
+   const project=migrateProject(JSON.parse(event.target.result));
+   const previous=historySnapshot();
+   loadProject(project);
+   pushHistory(previous);
+   projectBaseName=cleanFileBaseName(file.name,projectBaseName);
+   scheduleAutosave();
+  }catch(err){
+   alert("Не удалось открыть проект: "+(err instanceof SyntaxError?"файл содержит некорректный JSON.":err.message||"неверный формат файла."));
+  }finally{
+   projectInput.value="";
+  }
  };
+ reader.onerror=()=>{projectInput.value="";alert("Не удалось прочитать файл проекта.")};
+ reader.readAsText(file);
+};
+function projectFormatError(path,reason){throw new Error("Поле «"+path+"»: "+reason+".")}
+function projectRecord(value,path){
+ if(!value||typeof value!=="object"||Array.isArray(value))projectFormatError(path,"ожидается объект");
+ return value;
+}
+function projectNumber(value,path,{min=-Infinity,max=Infinity,positive=false,integer=false}={}){
+ if((typeof value!=="number"&&typeof value!=="string")||String(value).trim()==="")projectFormatError(path,"ожидается число");
+ const result=Number(value);
+ if(!Number.isFinite(result)||result<min||result>max||(positive&&result<=0)||(integer&&!Number.isInteger(result)))projectFormatError(path,"недопустимое числовое значение");
+ return result;
+}
+function projectBoolean(value,path){
+ if(value!==true&&value!==false&&value!=="true"&&value!=="false")projectFormatError(path,"ожидается логическое значение");
+ return value===true||value==="true";
+}
+function projectText(value,path){
+ if(typeof value!=="string")projectFormatError(path,"ожидается текст");
+ return value;
+}
+function projectImageSource(value,path,{allowEmpty=false}={}){
+ const source=projectText(value,path).trim();
+ if(!source&&allowEmpty)return "";
+ if(!source||/[\u0000-\u001f"<>]/.test(source))projectFormatError(path,"недопустимый источник изображения");
+ if(source.startsWith("data:")){
+  const match=source.match(/^data:image\/[a-z0-9.+-]+((?:;[a-z0-9=.+-]+)*),([\s\S]+)$/i);
+  if(!match)projectFormatError(path,"ожидается изображение в формате data:image");
+  try{
+   if(/;base64(?:;|$)/i.test(match[1])){
+    if(!/^[a-z0-9+/]*={0,2}$/i.test(match[2])||!atob(match[2]).length)throw new Error();
+   }else decodeURIComponent(match[2]);
+  }catch(e){projectFormatError(path,"повреждены данные изображения")}
+  return source;
+ }
+ try{
+  const url=new URL(source,document.baseURI);
+  if(url.protocol!=="https:"&&url.protocol!=="http:")throw new Error();
+ }catch(e){projectFormatError(path,"разрешены только изображения data:image и HTTP(S)")}
+ return source;
+}
+function listFromProject(project,key){
+ if(project[key]===undefined)return [];
+ if(!Array.isArray(project[key]))projectFormatError(key,"ожидается список");
+ return project[key];
+}
+function projectItem(value,path,dimensions={}){
+ const item={...projectRecord(value,path)};
+ ["left","top","rotation","captionDx","captionDy","captionRotation"].forEach(key=>{
+  if(item[key]!==undefined)item[key]=projectNumber(item[key],path+"."+key);
+ });
+ ["visible","locked","keepRatio","showWeight","showCaption","captionHost"].forEach(key=>{
+  if(item[key]!==undefined)item[key]=projectBoolean(item[key],path+"."+key);
+ });
+ if(item.opacity!==undefined)item.opacity=projectNumber(item.opacity,path+".opacity",{min:0,max:100});
+ Object.entries(dimensions).forEach(([key,fallback])=>{
+  if(item[key]===undefined)return;
+  const dimension=projectNumber(item[key],path+"."+key);
+  // Old saves wrote zero for hidden elements; their original dimensions cannot be recovered.
+  item[key]=dimension===0&&item.visible===false?fallback:projectNumber(dimension,path+"."+key,{positive:true});
+ });
+ ["text","title","gridId","targetGridId","caption","captionGroup","unit","material","shape","arrangement"].forEach(key=>{
+  if(item[key]!==undefined)item[key]=projectText(item[key],path+"."+key);
+ });
+ return item;
+}
+function migrateProject(value){
+ const project=projectRecord(value,"проект");
+ const lists=["grids","labels","footnotes","stickers","axes","overlays","purushas","corrections"];
+ if(![...lists,"planImageData"].some(key=>Object.hasOwn(project,key)))projectFormatError("проект","файл не содержит данных проекта");
+ if(project.version!==undefined)projectText(project.version,"version");
+ const version=project.version?.match(/^(\d+)\.(\d+)(?:\.|$)/);
+ const supported=PROJECT_VERSION.split(".").map(Number);
+ if(version&&(Number(version[1])>supported[0]||(Number(version[1])===supported[0]&&Number(version[2])>supported[1])))projectFormatError("version","версия проекта новее поддерживаемой "+PROJECT_VERSION);
+ const p={...project,version:project.version||"legacy"};
+ if(p.planImageData!==undefined)p.planImageData=projectImageSource(p.planImageData,"planImageData",{allowEmpty:true});
+ if(p.planImageRef!==undefined)projectText(p.planImageRef,"planImageRef");
+ if(p.planVisible!==undefined)p.planVisible=projectBoolean(p.planVisible,"planVisible");
+ if(p.planRotation!==undefined)p.planRotation=projectNumber(p.planRotation,"planRotation");
+ if(p.planOpacity!==undefined)p.planOpacity=projectNumber(p.planOpacity,"planOpacity",{min:0,max:100});
+ if(p.zoomLevel!==undefined)p.zoomLevel=projectNumber(p.zoomLevel,"zoomLevel",{positive:true});
+ const dimensions={grids:{width:480,height:480},labels:{},footnotes:{width:240,height:160},stickers:{},axes:{},overlays:{width:420,height:420},purushas:{width:PURUSHA_DEFAULT_WIDTH,height:PURUSHA_DEFAULT_HEIGHT},corrections:{width:80,height:80}};
+ lists.forEach(key=>p[key]=listFromProject(project,key).map((item,index)=>projectItem(item,key+"["+index+"]",dimensions[key])));
+ if(p.axes.length>MAX_AXIS_GROUPS)projectFormatError("axes","допустимо не более двух наборов осей");
+ const gridIds=new Set();
+ p.grids.forEach((grid,index)=>{
+  const path="grids["+index+"]";
+  grid.gridId=grid.gridId||"grid-"+(index+1);
+  if(gridIds.has(grid.gridId))projectFormatError(path+".gridId","идентификатор сетки повторяется");
+  gridIds.add(grid.gridId);
+  if(grid.fontSize!==undefined)grid.fontSize=projectNumber(grid.fontSize,path+".fontSize",{positive:true});
+  if(grid.directions!==undefined){
+   if(!Array.isArray(grid.directions)||grid.directions.length!==9)projectFormatError(path+".directions","ожидаются девять названий направлений");
+   grid.directions.forEach((text,i)=>projectText(text,path+".directions["+i+"]"));
+  }
+ });
+ p.labels.forEach((label,index)=>{if(label.fontSize!==undefined)label.fontSize=projectNumber(label.fontSize,"labels["+index+"].fontSize",{positive:true})});
+ p.footnotes.forEach((note,index)=>{
+  if(note.fontSize!==undefined)note.fontSize=projectNumber(note.fontSize,"footnotes["+index+"].fontSize",{positive:true});
+  if(note.format!==undefined&&!["paragraphs","numbered","bullets"].includes(note.format))projectFormatError("footnotes["+index+"].format","неизвестный формат сноски");
+ });
+ p.stickers.forEach((sticker,index)=>{
+  if(sticker.size!==undefined)sticker.size=projectNumber(sticker.size,"stickers["+index+"].size",{positive:true});
+  if(sticker.color!==undefined&&!["red","green"].includes(sticker.color))projectFormatError("stickers["+index+"].color","неизвестный цвет метки");
+ });
+ p.axes.forEach((axis,index)=>{
+  if(axis.len!==undefined)axis.len=projectNumber(axis.len,"axes["+index+"].len",{positive:true});
+  if(axis.axisIndex!==undefined)axis.axisIndex=projectNumber(axis.axisIndex,"axes["+index+"].axisIndex",{positive:true,integer:true});
+ });
+ p.overlays.forEach((overlay,index)=>overlay.src=projectImageSource(overlay.src,"overlays["+index+"].src"));
+ p.purushas.forEach((purusha,index)=>{if(purusha.src!==undefined)purusha.src=projectImageSource(purusha.src,"purushas["+index+"].src")});
+ p.corrections.forEach((correction,index)=>{
+  const path="corrections["+index+"]";
+  projectText(correction.category,path+".category");projectText(correction.item,path+".item");
+  if(!correctionDefinition(correction.category,correction.item))projectFormatError(path,"неизвестный объект коррекции");
+  if(correction.weight!==undefined)correction.weight=projectNumber(correction.weight,path+".weight",{min:0});
+  ["quantity","turns"].forEach(key=>{if(correction[key]!==undefined)correction[key]=projectNumber(correction[key],path+"."+key,{positive:true,integer:true,max:1000})});
+  ["captionTargetX","captionTargetY"].forEach(key=>{if(correction[key]!==undefined&&correction[key]!==null)correction[key]=projectNumber(correction[key],path+"."+key)});
+ });
+ p.correctionGroups=project.correctionGroups===undefined?{}:{...projectRecord(project.correctionGroups,"correctionGroups")};
+ Object.entries(p.correctionGroups).forEach(([key,value])=>{
+  const group={...projectRecord(value,"correctionGroups."+key)};
+  if(group.visible!==undefined)group.visible=projectBoolean(group.visible,"correctionGroups."+key+".visible");
+  if(group.opacity!==undefined)group.opacity=projectNumber(group.opacity,"correctionGroups."+key+".opacity",{min:0,max:100});
+  p.correctionGroups[key]=group;
+ });
+ return p;
 }
 function clearProjectElements(){
  document.querySelectorAll(".vastu-grid,.text-label,.footnote,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());
@@ -1419,16 +1593,45 @@ function restoreProjectItems(project){
 }
 function loadProject(project){
  const p=migrateProject(project);
- clearProjectElements();
- restorePlanState(p);
- initCorrectionGroups(p.correctionGroups);
- renderCorrectionLibrary(correctionSearch.value);
- restoreProjectItems(p);
- applyCorrectionGroups();
+ const previous={nodes:[...canvas.childNodes],planAttributes:[...plan.attributes].map(attribute=>[attribute.name,attribute.value]),planData,lastPlanRot,zoomLevel,selection:sel,type:selType,groups:structuredClone(correctionGroups),isRestoring,autosavePaused,counters:[gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter],planDataRefCounter,refs:new Map(planDataRefs),ids:new Map(planDataIds)};
+ cancelAutosave();
+ isRestoring=true;autosavePaused=true;
+ try{
+  clearProjectElements();
+  restorePlanState(p);
+  initCorrectionGroups(p.correctionGroups);
+  renderCorrectionLibrary(correctionSearch.value);
+  restoreProjectItems(p);
+  applyCorrectionGroups();
+ }catch(err){
+  canvas.replaceChildren(...previous.nodes);
+  [...plan.attributes].forEach(attribute=>plan.removeAttribute(attribute.name));
+  previous.planAttributes.forEach(([name,value])=>plan.setAttribute(name,value));
+  planData=previous.planData;lastPlanRot=previous.lastPlanRot;zoomLevel=previous.zoomLevel;correctionGroups=previous.groups;
+  [gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter]=previous.counters;
+  planDataRefCounter=previous.planDataRefCounter;
+  planDataRefs.clear();previous.refs.forEach((value,key)=>planDataRefs.set(key,value));
+  planDataIds.clear();previous.ids.forEach((value,key)=>planDataIds.set(key,value));
+  planRot.value=fmtDeg(lastPlanRot);planDegTxt.innerText=planRot.value;
+  planOpacity.value=num(plan.style.opacity,0.85)*100;planOpacityTxt.innerText=planOpacity.value;
+  applyZoom();renderCorrectionLibrary(correctionSearch.value);
+  if(previous.selection?.isConnected){
+   if(previous.type==="plan")selectPlan();else select(previous.selection,previous.type);
+  }else clearSel();
+  throw err;
+ }finally{
+  isRestoring=previous.isRestoring;autosavePaused=previous.autosavePaused;
+ }
 }
-document.addEventListener("input",scheduleAutosave,true);
-document.addEventListener("change",scheduleAutosave,true);
-setAutosaveStatus(getAutosaveRaw()?"Есть автосохранение":"Автосохранение готово");
+function handleProjectAutosaveInput(event){
+ if(["projectInput","correctionSearch","imageInput","overlayInput","pngQuality"].includes(event.target.id))return;
+ scheduleAutosave();
+}
+document.addEventListener("input",handleProjectAutosaveInput,true);
+document.addEventListener("change",handleProjectAutosaveInput,true);
+window.addEventListener("pagehide",flushAutosave);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushAutosave()});
+initializeAutosave();
 async function exportPDF(){
  const name=askFileBaseName("Название PDF-файла",exportBaseName);
  if(!name)return;

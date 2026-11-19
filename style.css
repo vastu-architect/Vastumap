@@ -549,15 +549,32 @@ input[type=number],input:not([type]),#labelText,select{
   border:1px solid var(--line);
 }
 
+.autosave-recovery{
+  grid-row:2;
+  display:flex;
+  flex-shrink:0;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--line);
+  background:#fff4db;
+  font-size:12px;
+}
+.autosave-recovery>div{display:flex;flex-wrap:wrap;gap:6px}
+.autosave-recovery button{padding:7px 10px;border:1px solid var(--line)}
+
 .work-area{
   min-width:0;
   min-height:0;
   display:grid;
-  grid-template-rows:61px minmax(0,1fr) 37px;
+  grid-template-rows:61px auto minmax(0,1fr) 37px;
   background:#ece9e3;
 }
 
 .canvas-toolbar{
+  grid-row:1;
   display:flex;
   align-items:center;
   justify-content:space-between;
@@ -601,6 +618,8 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .workspace{
+  grid-row:3;
+  min-height:0;
   position:relative;
   overflow:auto;
   padding:24px;
@@ -649,6 +668,7 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .statusbar{
+  grid-row:4;
   display:flex;
   justify-content:space-between;
   gap:16px;
@@ -1301,12 +1321,12 @@ body.exporting .selected,body.exporting .locked{outline:none !important}
   .layers-panel{border-right:0;border-bottom:1px solid var(--line);overflow:visible}
   .layers-list{max-height:210px}
   .correction-library{min-height:380px;flex-basis:380px}
-  .work-area{height:66vh}
+  .work-area{height:66vh;flex-shrink:0}
   .properties-panel{border-top:1px solid var(--line)}
 }
 
 @media print{
-  .app-header,.layers-panel,.properties-panel,.canvas-toolbar,.statusbar{display:none !important}
+  .app-header,.layers-panel,.properties-panel,.canvas-toolbar,.statusbar,.autosave-recovery{display:none !important}
   body{height:auto;overflow:visible;background:#fff}
   .layout,.work-area{display:block;height:auto}
   .workspace{padding:0;overflow:visible}

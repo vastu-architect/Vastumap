@@ -92,6 +92,13 @@
           <button onclick="zoomAll(0.1)">+</button>
         </div>
       </div>
+      <div class="autosave-recovery" id="autosaveRecovery" role="status" hidden>
+        <span>Найдено автосохранение. Если продолжить текущий проект, оно будет заменено.</span>
+        <div>
+          <button id="restoreAutosaveBtn" onclick="restoreAutosave()">Восстановить</button>
+          <button id="continueAutosaveBtn" onclick="continueCurrentProject()">Продолжить текущий проект</button>
+        </div>
+      </div>
       <div class="workspace">
         <div class="canvas" id="canvas">
           <img id="planImage" alt="">
