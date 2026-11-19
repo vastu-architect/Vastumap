@@ -1,9 +1,29 @@
 let sel=null,selType="",gridCounter=0,labelCounter=0,footnoteCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,captionGroupCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false,projectBaseName="vastu-project",exportBaseName="vastu-map";
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
 plan.dataset.visible="true";
+const PROJECT_VERSION="4.4";
+const AUTOSAVE_KEY="vastu-studio-autosave-v1";
+let planDataRefCounter=0;
+let autosaveTimer=null,autosavePaused=false,recoveryPending=false;
+const planDataRefs=new Map();
+const planDataIds=new Map();
 const names=["Северо-Запад","Север","Северо-Восток","Запад","Брахмастан","Восток","Юго-Запад","Юг","Юго-Восток"];
 function nd(v){v=parseFloat(v)||0;return((v%360)+360)%360}
 function num(v,fallback){if(v===undefined||v===null||v==="")return fallback;const n=Number(v);return Number.isFinite(n)?n:fallback}
+function fmtDeg(v){const n=nd(v),rounded=Math.round(n);return Math.abs(n-rounded)<.001?String(rounded===360?0:rounded):String(Math.round(n*100)/100)}
+function planDataRef(data){
+ if(!data)return "";
+ if(planDataIds.has(data))return planDataIds.get(data);
+ const id="plan-"+(++planDataRefCounter);
+ planDataIds.set(data,id);
+ planDataRefs.set(id,data);
+ return id;
+}
+function resolvePlanData(project){
+ if(typeof project.planImageData==="string")return project.planImageData;
+ if(project.planImageRef&&planDataRefs.has(project.planImageRef))return planDataRefs.get(project.planImageRef);
+ return "";
+}
 function clearSel(){document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));sel=null;selType="";showProperties("");refreshLayers()}
 function isLayerVisible(el){return !el.dataset||el.dataset.visible!=="false"}
 function applyLayerVisibility(el,type=""){
@@ -44,31 +64,106 @@ function setAllLayersVisibility(visible){
 }
 function hideAllLayers(){setAllLayersVisibility(false)}
 function showAllLayers(){setAllLayersVisibility(true)}
-function pushHistory(){
+function setAutosaveStatus(text){
+ const el=document.getElementById("autosaveStatus");
+ if(el)el.innerText=text;
+}
+function autosaveLabel(date){
+ return date.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+}
+function getAutosaveRaw(){
+ try{return localStorage.getItem(AUTOSAVE_KEY)}catch(e){return null}
+}
+function cancelAutosave(){
+ clearTimeout(autosaveTimer);
+ autosaveTimer=null;
+}
+function showAutosaveRecovery(){
+ const banner=document.getElementById("autosaveRecovery");
+ if(banner)banner.hidden=!recoveryPending;
+}
+function initializeAutosave(){
+ recoveryPending=!!getAutosaveRaw();
+ showAutosaveRecovery();
+ setAutosaveStatus(recoveryPending?"Есть автосохранение — выберите восстановление или текущий проект":"Автосохранение готово");
+}
+function runAutosave(){
+ cancelAutosave();
+ if(isRestoring||autosavePaused||recoveryPending)return;
+ try{
+  localStorage.setItem(AUTOSAVE_KEY,JSON.stringify({savedAt:new Date().toISOString(),project:collect()}));
+  setAutosaveStatus("Автосохранено "+autosaveLabel(new Date()));
+ }catch(e){
+  const quota=e.name==="QuotaExceededError"||e.name==="NS_ERROR_DOM_QUOTA_REACHED";
+  setAutosaveStatus(quota?"Нет места для автосохранения. Сохраните проект в файл.":"Автосохранение недоступно. Сохраните проект в файл.");
+ }
+}
+function scheduleAutosave(){
+ if(isRestoring||autosavePaused||recoveryPending)return;
+ cancelAutosave();
+ setAutosaveStatus("Автосохранение...");
+ autosaveTimer=setTimeout(runAutosave,900);
+}
+function flushAutosave(){
+ if(autosaveTimer!==null)runAutosave();
+}
+function continueCurrentProject(){
+ if(!recoveryPending)return;
+ recoveryPending=false;
+ showAutosaveRecovery();
+ runAutosave();
+}
+function restoreAutosave(){
+ const raw=getAutosaveRaw();
+ if(!raw){alert("Автосохранений пока нет.");return;}
+ const wasPaused=autosavePaused;
+ cancelAutosave();
+ try{
+  const payload=JSON.parse(raw);
+  if(!payload.project)throw new Error("Empty autosave");
+  const previous=historySnapshot();
+  autosavePaused=true;
+  loadProject(payload.project);
+  autosavePaused=wasPaused;
+  recoveryPending=false;
+  showAutosaveRecovery();
+  pushHistory(previous);
+  const savedAt=payload.savedAt?new Date(payload.savedAt):null;
+  setAutosaveStatus(savedAt&&!Number.isNaN(savedAt.getTime())?"Восстановлено "+autosaveLabel(savedAt):"Восстановлено автосохранение");
+ }catch(e){
+  alert("Не удалось восстановить автосохранение.");
+ }finally{
+  autosavePaused=wasPaused;
+ }
+}
+function historySnapshot(){return JSON.stringify(collect({includePlanData:false}))}
+function pushHistory(snapshot){
  if(isRestoring) return;
  try {
-  const state=JSON.stringify(collect());
+  const state=typeof snapshot==="string"?snapshot:historySnapshot();
   if(historyStack[historyStack.length-1]!==state) historyStack.push(state);
   if(historyStack.length>30) historyStack.shift();
   redoStack=[];
+  scheduleAutosave();
  } catch(e) {}
 }
-function undoLast(){
- if(!historyStack.length){ alert("Нет действия для отмены"); return; }
- try { redoStack.push(JSON.stringify(collect())); } catch(e) {}
- const prev=JSON.parse(historyStack.pop());
- isRestoring = true;
- loadProject(prev);
- isRestoring = false;
+function restoreHistory(source,target,emptyMessage){
+ if(!source.length){alert(emptyMessage);return;}
+ cancelAutosave();
+ try{
+  const current=historySnapshot();
+  const next=JSON.parse(source[source.length-1]);
+  loadProject(next);
+  source.pop();
+  target.push(current);
+  if(target.length>30)target.shift();
+  scheduleAutosave();
+ }catch(e){
+  alert("Не удалось восстановить состояние проекта.");
+ }
 }
-function redoLast(){
- if(!redoStack.length){ alert("Нет действия для повтора"); return; }
- try { historyStack.push(JSON.stringify(collect())); } catch(e) {}
- const next=JSON.parse(redoStack.pop());
- isRestoring=true;
- loadProject(next);
- isRestoring=false;
-}
+function undoLast(){restoreHistory(historyStack,redoStack,"Нет действия для отмены")}
+function redoLast(){restoreHistory(redoStack,historyStack,"Нет действия для повтора")}
 function applyZoom(){canvas.style.transformOrigin="top center";canvas.style.transform=`scale(${zoomLevel})`;zoomTxt.innerText=Math.round(zoomLevel*100)}
 function zoomAll(delta){pushHistory();zoomLevel=Math.max(0.25,Math.min(3,zoomLevel+delta));applyZoom()}
 function togglePanel(){document.querySelector(".layout").classList.toggle("panel-hidden")}
@@ -76,13 +171,14 @@ function toggleCorrectionFocus(){
  const active=document.body.classList.toggle("correction-focus");
  if(typeof focusModeBtn!=="undefined")focusModeBtn.innerText=active?"Фокус: вкл":"Фокус: выкл";
 }
-imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{planData=x.target.result;plan.src=planData;selectPlan()};r.readAsDataURL(f)}
-overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>addOverlayImage({src:x.target.result});r.readAsDataURL(f)}
+imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{planData=x.target.result;plan.src=planData;selectPlan();scheduleAutosave()};r.readAsDataURL(f)}
+overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{addOverlayImage({src:x.target.result});scheduleAutosave()};r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.onfocus=()=>pushHistory();planOpacity.oninput=e=>{plan.style.opacity=e.target.value/100;planOpacityTxt.innerText=e.target.value};
 function setPlanRot(v){
  let n=nd(v),delta=n-lastPlanRot;
- planRot.value=Math.round(n);
- planDegTxt.innerText=Math.round(n);
+ plan.dataset.rotation=n;
+ planRot.value=fmtDeg(n);
+ planDegTxt.innerText=fmtDeg(n);
  plan.style.transform=`translate(-50%,-50%) rotate(${n}deg)`;
  document.querySelectorAll(".vastu-grid").forEach(g=>{
   if(g.dataset.locked==="true"){
@@ -123,11 +219,18 @@ function updateGridTypography(grid){
  grid.style.setProperty("--grid-cell-padding",padding+"px");
  return size;
 }
+function allocateGridId(){
+ const used=new Set([...canvas.querySelectorAll(".vastu-grid")].map(grid=>grid.dataset.gridId));
+ let index=gridCounter;
+ while(used.has("grid-"+index))index++;
+ return "grid-"+index;
+}
 function addGrid(d={}){
  if(!isRestoring&&Object.keys(d).length===0)pushHistory();
  gridCounter++;
  const g=document.createElement("div");
  g.className="vastu-grid";
+ g.dataset.gridId=d.gridId||allocateGridId();
  g.dataset.rot=d.rotation??0;g.dataset.op=d.opacity??62;g.dataset.locked=(d.locked==="true"||d.locked===true)?"true":"false";g.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";
  g.style.left=(d.left??520+gridCounter*20)+"px";g.style.top=(d.top??330+gridCounter*20)+"px";g.style.width=(d.width??480)+"px";g.style.height=(d.height??480)+"px";g.style.transform=`rotate(${g.dataset.rot}deg)`;
  g.classList.toggle("locked",g.dataset.locked==="true");
@@ -148,7 +251,7 @@ function updGridPanel(){
  updateGridTypography(sel);
  const locked=sel.dataset.locked==="true";
  sel.classList.toggle("locked", locked);
- gridRot.value=Math.round(+sel.dataset.rot||0);
+ gridRot.value=fmtDeg(sel.dataset.rot||0);
  gridDeg.innerText=gridRot.value;
  gridOp.value=sel.dataset.op||62;
  gridOpTxt.innerText=gridOp.value;
@@ -223,110 +326,8 @@ function startDrag(e){
  if(g.dataset.locked==="true"){drag=null;return;}
  pushHistory();
  let p=point(e);drag={type:"drag",el:g,x:p.x,y:p.y,l:parseFloat(g.style.left),t:parseFloat(g.style.top)};bind()}
-function startResize(e){
- e.preventDefault();e.stopPropagation();
- let g=e.target.closest(".vastu-grid");
- select(g,"grid");
- if(g.dataset.locked==="true"){drag=null;return;}
- pushHistory();
- let p=point(e);
- let handle=[...e.target.classList].find(c=>["nw","ne","sw","se"].includes(c)) || "se";
- const l=parseFloat(g.style.left), t=parseFloat(g.style.top), w=g.offsetWidth, h=g.offsetHeight;
- const rot=(+g.dataset.rot||0) * Math.PI / 180;
- const cx=l+w/2, cy=t+h/2;
- function toWorld(localX, localY){
-   return {
-     x: cx + localX*Math.cos(rot) - localY*Math.sin(rot),
-     y: cy + localX*Math.sin(rot) + localY*Math.cos(rot)
-   };
- }
- const sx = handle.includes("e") ? 1 : -1;
- const sy = handle.includes("s") ? 1 : -1;
- const fixedLocal = {x:-sx*w/2, y:-sy*h/2};
- const movingLocal = {x:sx*w/2, y:sy*h/2};
- drag={
-   type:"resize",
-   el:g,
-   handle,
-   sx, sy,
-   rot,
-   fixedWorld:toWorld(fixedLocal.x, fixedLocal.y),
-   startMovingWorld:toWorld(movingLocal.x, movingLocal.y),
-   min:150
- };
- bind();
-}
 function startRot(e){e.preventDefault();e.stopPropagation();let g=e.target.closest(".vastu-grid");select(g,"grid");if(g.dataset.locked==="true"){drag=null;return;}pushHistory();drag={type:"rot",el:g,cx:parseFloat(g.style.left)+g.offsetWidth/2,cy:parseFloat(g.style.top)+g.offsetHeight/2};bind()}
-function move(e){if(!drag)return;e.preventDefault();let p=point(e);if(drag.type=="drag"||drag.type=="generic"){if(drag.el.classList&&drag.el.classList.contains("vastu-grid")&&drag.el.dataset.locked==="true")return;drag.el.style.left=drag.l+(p.x-drag.x)+"px";drag.el.style.top=drag.t+(p.y-drag.y)+"px"}if(drag.type=="resize"){
- if(drag.el.dataset.locked==="true")return;
-
- // Resize в локальных координатах повернутой сетки.
- // Фиксируем противоположный угол в мировых координатах, поэтому при любом повороте
- // незатрагиваемые стороны/противоположный угол визуально остаются на месте.
- const cos=Math.cos(-drag.rot), sin=Math.sin(-drag.rot);
- const vx=p.x-drag.fixedWorld.x;
- const vy=p.y-drag.fixedWorld.y;
- const localX=vx*cos - vy*sin;
- const localY=vx*sin + vy*cos;
-
- let newW=Math.max(drag.min, Math.abs(localX));
- let newH=Math.max(drag.min, Math.abs(localY));
-
- const centerLocalX=drag.sx*newW/2;
- const centerLocalY=drag.sy*newH/2;
- const rot=drag.rot;
- const centerWorld={
-   x:drag.fixedWorld.x + centerLocalX*Math.cos(rot) - centerLocalY*Math.sin(rot),
-   y:drag.fixedWorld.y + centerLocalX*Math.sin(rot) + centerLocalY*Math.cos(rot)
- };
-
- drag.el.style.width=newW+"px";
- drag.el.style.height=newH+"px";
- drag.el.style.left=(centerWorld.x-newW/2)+"px";
- drag.el.style.top=(centerWorld.y-newH/2)+"px";
- if(drag.el===sel)updGridPanel();
-}
-if(drag.type=="overlay-resize"){
- if(drag.el.dataset.locked==="true")return;
- let dx=p.x-drag.x, dy=p.y-drag.y;
- const aspect=drag.w/drag.h;
- let delta=0;
- if(drag.handle.includes("e")) delta=dx;
- if(drag.handle.includes("w")) delta=-dx;
- if(Math.abs(dy)>Math.abs(delta)){
-   if(drag.handle.includes("s")) delta=dy*aspect;
-   if(drag.handle.includes("n")) delta=-dy*aspect;
- }
- let newW=Math.max(50, drag.w+delta);
- let newH=newW/aspect;
- let newL=drag.l, newT=drag.t;
- if(drag.handle.includes("w")) newL=drag.l+(drag.w-newW);
- if(drag.handle.includes("n")) newT=drag.t+(drag.h-newH);
- drag.el.style.width=newW+"px";
- drag.el.style.left=newL+"px";
- drag.el.style.top=newT+"px";
- drag.el.dataset.width=Math.round(newW);
- if(drag.el===sel)updOverlayPanel();
-}
-if(drag.type=="purusha-resize"){
- if(drag.el.dataset.locked==="true")return;
- let dx=p.x-drag.x, dy=p.y-drag.y;
- let newW=drag.w, newH=drag.h, newL=drag.l, newT=drag.t;
-
- if(drag.handle.includes("e")) newW=Math.max(80, drag.w+dx);
- if(drag.handle.includes("s")) newH=Math.max(80, drag.h+dy);
- if(drag.handle.includes("w")) { newW=Math.max(80, drag.w-dx); newL=drag.l+(drag.w-newW); }
- if(drag.handle.includes("n")) { newH=Math.max(80, drag.h-dy); newT=drag.t+(drag.h-newH); }
-
- drag.el.style.width=newW+"px";
- drag.el.style.height=newH+"px";
- drag.el.style.left=newL+"px";
- drag.el.style.top=newT+"px";
- drag.el.dataset.width=Math.round(newW);
- drag.el.dataset.height=Math.round(newH);
- if(drag.el===sel)updPurushaPanel();
-}if(drag.type=="rot"){if(drag.el.dataset.locked==="true")return;let deg=Math.round(nd(Math.atan2(p.y-drag.cy,p.x-drag.cx)*180/Math.PI+90));drag.el.dataset.rot=deg;drag.el.style.transform=`rotate(${deg}deg)`;if(drag.el===sel)updGridPanel()}}
-function stop(){const finished=drag;drag=null;document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",stop);document.removeEventListener("touchmove",move);document.removeEventListener("touchend",stop);if(finished?.type==="correction-caption")mergeCorrectionCaptionAtDrop(finished.el)}
+function stop(){const finished=drag;drag=null;document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",stop);document.removeEventListener("touchmove",move);document.removeEventListener("touchend",stop);if(finished?.type==="correction-caption")mergeCorrectionCaptionAtDrop(finished.el);if(finished)scheduleAutosave()}
 
 const PURUSHA_GRID_SRC = "purusha-grid.jpg";
 const PURUSHA_DEFAULT_WIDTH = 520;
@@ -379,7 +380,7 @@ function updPurushaPanel(){
  if(typeof purushaHeight!=="undefined"){purushaHeight.value=h;purushaHeightTxt.innerText=h;}
  purushaOp.value=sel.dataset.opacity||100;
  purushaOpTxt.innerText=sel.dataset.opacity||100;
- purushaRot.value=Math.round(+sel.dataset.rotation||0);
+ purushaRot.value=fmtDeg(sel.dataset.rotation||0);
  purushaRotTxt.innerText=purushaRot.value;
 }
 function setPurushaRot(v){
@@ -430,17 +431,6 @@ purushaOp.onfocus=()=>pushHistory();
 purushaOp.oninput=e=>{if(selType!=="purusha")return;sel.dataset.opacity=e.target.value;sel.style.opacity=e.target.value/100;purushaOpTxt.innerText=e.target.value;};
 purushaRot.onfocus=()=>pushHistory();
 purushaRot.oninput=e=>setPurushaRot(e.target.value);
-function startPurushaResize(e){
- e.preventDefault();e.stopPropagation();
- const wrap=e.target.closest(".purusha-grid");
- select(wrap,"purusha");
- if(wrap.dataset.locked==="true"){drag=null;return;}
- pushHistory();
- const p=point(e);
- const handle=[...e.target.classList].find(c=>["nw","n","ne","e","se","s","sw","w"].includes(c)) || "se";
- drag={type:"purusha-resize",el:wrap,handle,x:p.x,y:p.y,w:wrap.offsetWidth,h:wrap.offsetHeight,l:parseFloat(wrap.style.left),t:parseFloat(wrap.style.top)};
- bind();
-}
 function addOverlayImage(d={}){
  overlayCounter++;
  const wrap=document.createElement("div");
@@ -482,7 +472,7 @@ function updOverlayPanel(){
  overlaySizeTxt.innerText=Math.round(parseFloat(sel.style.width)||sel.offsetWidth||420);
  overlayOp.value=sel.dataset.opacity||100;
  overlayOpTxt.innerText=sel.dataset.opacity||100;
- overlayRot.value=Math.round(+sel.dataset.rotation||0);
+ overlayRot.value=fmtDeg(sel.dataset.rotation||0);
  overlayRotTxt.innerText=overlayRot.value;
 }
 function setOverlayRot(v){
@@ -970,9 +960,9 @@ function updCorrectionPanel(){
  if(selType!=="correction")return;
  const data=correctionState(sel),def=correctionDefinition(data.category,data.item),category=correctionCategory(data.category);
  correctionName.innerText=def.name;correctionCategoryName.innerText=category.name;correctionPreview.src=correctionArt(data);
- lockCorrection.checked=data.locked==="true";correctionOp.value=data.opacity;correctionOpTxt.innerText=data.opacity;correctionRot.value=data.rotation;correctionRotTxt.innerText=data.rotation;
+ lockCorrection.checked=data.locked==="true";correctionOp.value=data.opacity;correctionOpTxt.innerText=data.opacity;correctionRot.value=fmtDeg(data.rotation);correctionRotTxt.innerText=correctionRot.value;
  correctionShowCaption.checked=data.showCaption;correctionCaptionText.value=data.caption||def.name;
- correctionCaptionRot.value=data.captionRotation;correctionCaptionRotTxt.innerText=data.captionRotation;
+ correctionCaptionRot.value=fmtDeg(data.captionRotation);correctionCaptionRotTxt.innerText=correctionCaptionRot.value;
  correctionKeepRatio.checked=data.keepRatio;correctionWidth.value=Math.round(data.width);correctionHeight.value=Math.round(data.height);correctionSize.value=Math.min(600,Math.round(data.width));correctionSizeTxt.innerText=Math.round(data.width);
  correctionMeasurement.hidden=!isMeasuredCorrection(def);correctionShowWeight.checked=data.showWeight;correctionWeightFields.hidden=!data.showWeight;correctionWeight.value=data.weight;correctionWeightUnit.value=data.unit;
  spiralControls.hidden=def.visual!=="spiral";correctionMaterial.value=data.material;correctionShape.value=data.shape;correctionQuantity.value=String(data.quantity);correctionArrangement.value=data.arrangement;spiralArrangementField.hidden=data.quantity<=1;
@@ -981,9 +971,9 @@ function updCorrectionPanel(){
   if(isGroupableCorrection(def))correctionStoneQuantity.value=String(data.quantity);
  }
 }
-function setCorrectionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.rotation=rotation;sel.style.transform=`rotate(${rotation}deg)`;updateCorrectionCaptionPosition(sel);updCorrectionPanel()}
+function setCorrectionRotation(value){if(selType!=="correction")return;if(sel.dataset.locked==="true"){updCorrectionPanel();return;}const rotation=nd(value);sel.dataset.rotation=rotation;sel.style.transform=`rotate(${rotation}deg)`;updateCorrectionCaptionPosition(sel);updCorrectionPanel()}
 function stepCorrectionRot(delta){pushHistory();setCorrectionRotation(num(correctionRot.value,0)+delta)}
-function setCorrectionCaptionRotation(value){if(selType!=="correction"||sel.dataset.locked==="true")return;const rotation=nd(value);sel.dataset.captionRotation=rotation;updateCorrectionCaptionPosition(sel);updCorrectionPanel()}
+function setCorrectionCaptionRotation(value){if(selType!=="correction")return;if(sel.dataset.locked==="true"){updCorrectionPanel();return;}const rotation=nd(value);sel.dataset.captionRotation=rotation;updateCorrectionCaptionPosition(sel);updCorrectionPanel()}
 function stepCorrectionCaptionRot(delta){pushHistory();setCorrectionCaptionRotation(num(correctionCaptionRot.value,0)+delta)}
 function updateCorrectionDimensions(width,height){
  if(selType!=="correction"||sel.dataset.locked==="true")return;
@@ -1054,8 +1044,8 @@ correctionArrangement.onchange=e=>{if(selType!=="correction")return;pushHistory(
 if(typeof correctionStoneQuantity!=="undefined")correctionStoneQuantity.onchange=e=>{if(selType!=="correction")return;pushHistory();sel.dataset.quantity=e.target.value;updateCorrectionArt(sel);updCorrectionPanel();refreshLayers()};
 function addTextLabel(d={}){if(!isRestoring && Object.keys(d).length===0) pushHistory();labelCounter++;let l=document.createElement("div");l.className="text-label";l.dataset.rot=d.rotation??0;l.dataset.fs=d.fontSize??22;l.dataset.visible=d.visible===false||d.visible==="false"?"false":"true";l.innerText=d.text??"Надпись";const place=defaultPlacement(120,38,labelCounter-1);l.style.left=(d.left??place.left)+"px";l.style.top=(d.top??place.top)+"px";l.style.fontSize=l.dataset.fs+"px";l.style.transform=`rotate(${l.dataset.rot}deg)`;prepGeneric(l,"label");canvas.appendChild(l);applyLayerVisibility(l,"label");select(l,"label");updLabelPanel()}
 function duplicateTextLabel(){if(selType!=="label")return;pushHistory();addTextLabel({left:parseFloat(sel.style.left)+24,top:parseFloat(sel.style.top)+24,text:sel.innerText,rotation:num(sel.dataset.rot,0),fontSize:num(sel.dataset.fs,22),visible:isLayerVisible(sel)})}
-function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=sel.dataset.rot;labelDeg.innerText=sel.dataset.rot}
-labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){sel.dataset.rot=e.target.value;sel.style.transform=`rotate(${e.target.value}deg)`;labelDeg.innerText=e.target.value}}
+function updLabelPanel(){if(selType!="label")return;labelText.value=sel.innerText;fontSize.value=sel.dataset.fs;fontTxt.innerText=sel.dataset.fs;labelRot.value=fmtDeg(sel.dataset.rot||0);labelDeg.innerText=labelRot.value}
+labelText.onfocus=()=>pushHistory();labelText.oninput=e=>{if(selType=="label")sel.innerText=e.target.value||" "};fontSize.onfocus=()=>pushHistory();fontSize.oninput=e=>{if(selType=="label"){sel.dataset.fs=e.target.value;sel.style.fontSize=e.target.value+"px";fontTxt.innerText=e.target.value}};labelRot.onfocus=()=>pushHistory();labelRot.oninput=e=>{if(selType=="label"){const rot=nd(e.target.value);sel.dataset.rot=rot;sel.style.transform=`rotate(${rot}deg)`;labelDeg.innerText=fmtDeg(rot)}}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 function footnoteState(el){
  return {left:parseFloat(el.style.left),top:parseFloat(el.style.top),width:num(el.dataset.width,240),height:num(el.dataset.height,160),title:el.dataset.title||"Сноска "+(el.dataset.index||""),text:el.dataset.text||"",fontSize:num(el.dataset.fontSize,14),format:el.dataset.format||"paragraphs",visible:isLayerVisible(el)};
@@ -1212,6 +1202,7 @@ function addAxes(d={}){
  if(!isRestoring&&Object.keys(d).length===0) pushHistory();
  axisCounter++;
  const len=num(d.len,1800);
+ const selectedGrid=selType==="grid"&&sel&&isLayerVisible(sel)?sel:null;
  const anchor=workingAreaCenter();
  let wrap=document.createElement("div");
  wrap.className="axis-group axis";
@@ -1221,6 +1212,7 @@ function addAxes(d={}){
  wrap.dataset.opacity=d.opacity??100;
  wrap.dataset.rotation=d.rotation??0;
  wrap.dataset.axisIndex=d.axisIndex??axisCounter;
+ wrap.dataset.targetGridId=d.targetGridId||selectedGrid?.dataset.gridId||"";
  wrap.style.left=(d.left??Math.round(anchor.x-len/2))+"px";
  wrap.style.top=(d.top??Math.round(anchor.y))+"px";
  wrap.style.width=len+"px";
@@ -1256,6 +1248,7 @@ function updateAxisVisual(g){
  const len=+g.dataset.len||1800;
  const op=(+g.dataset.opacity||100)/100;
  g.style.width=len+"px";
+ g.style.height="2px";
  g.style.transform=`rotate(${g.dataset.rotation||0}deg)`;
  g.classList.toggle("locked",g.dataset.locked==="true");
  g.querySelectorAll(".axis-line").forEach(line=>{
@@ -1267,33 +1260,69 @@ function updateAxisVisual(g){
 function updAxisPanel(){
  if(selType!=="axis") return;
  lockAxes.checked=sel.dataset.locked==="true";
- axisRot.value=Math.round(+sel.dataset.rotation||0);
+ buildAxisTargetOptions(sel);
+ axisRot.value=fmtDeg(sel.dataset.rotation||0);
  axisRotTxt.innerText=axisRot.value;
  axisLen.value=sel.dataset.len||1800;
  axisLenTxt.innerText=sel.dataset.len||1800;
  axisOp.value=sel.dataset.opacity||100;
  axisOpTxt.innerText=sel.dataset.opacity||100;
 }
-function brahmasthanCenter(){
- const selectedGrid=selType==="grid"&&sel&&isLayerVisible(sel)?sel:null;
- const grid=selectedGrid||document.querySelector(".vastu-grid:not([hidden])");
- if(!grid)return null;
+function buildAxisTargetOptions(axis){
+ if(typeof axisTargetGrid==="undefined")return;
+ const grids=[...document.querySelectorAll(".vastu-grid")];
+ axisTargetGrid.innerHTML='<option value="">Авто: ближайшая сетка</option>';
+ grids.forEach((grid,index)=>{
+  if(!grid.dataset.gridId)grid.dataset.gridId="grid-"+(index+1);
+  const option=document.createElement("option");
+  option.value=grid.dataset.gridId;
+  option.textContent="Сетка "+(index+1);
+  axisTargetGrid.appendChild(option);
+ });
+ axisTargetGrid.value=axis.dataset.targetGridId||"";
+}
+function gridCenter(grid){
  return{
   x:parseFloat(grid.style.left)+grid.offsetWidth/2,
   y:parseFloat(grid.style.top)+grid.offsetHeight/2
  };
 }
+function axisCenter(axis){
+ const len=num(axis.dataset.len,axis.offsetWidth||1800);
+ return{x:parseFloat(axis.style.left)+len/2,y:parseFloat(axis.style.top)+1};
+}
+function findGridForAxis(axis){
+ const allGrids=[...document.querySelectorAll(".vastu-grid")];
+ const linked=axis.dataset.targetGridId&&allGrids.find(grid=>grid.dataset.gridId===axis.dataset.targetGridId);
+ if(linked)return linked;
+ const grids=allGrids.filter(isLayerVisible);
+ if(!grids.length)return null;
+ const center=axisCenter(axis);
+ const nearest=grids.reduce((best,grid)=>{
+  const gCenter=gridCenter(grid);
+  const distance=(gCenter.x-center.x)**2+(gCenter.y-center.y)**2;
+  return !best||distance<best.distance?{grid,distance}:best;
+ },null)?.grid||null;
+ if(nearest)axis.dataset.targetGridId=nearest.dataset.gridId||"";
+ return nearest;
+}
+function brahmasthanCenter(axis=null){
+ const selectedGrid=selType==="grid"&&sel&&isLayerVisible(sel)?sel:null;
+ const grid=selectedGrid||(axis?findGridForAxis(axis):document.querySelector(".vastu-grid:not([hidden])"));
+ return grid?gridCenter(grid):null;
+}
 function centerAxisOnBrahmasthan(){
  const g=currentAxis();
  if(!g)return;
  if(g.dataset.locked==="true"){updAxisPanel();return;}
- const center=brahmasthanCenter();
+ const center=brahmasthanCenter(g);
  if(!center){alert("Сначала добавьте сетку 3x3: центр Брахмастана берётся из её центральной ячейки.");return;}
  pushHistory();
  const len=num(g.dataset.len,1800);
  g.style.left=(center.x-len/2)+"px";
- g.style.top=center.y+"px";
+ g.style.top=(center.y-1)+"px";
  updateAxisVisual(g);
+ updAxisPanel();
  refreshLayers();
 }
 function setAxisRot(value){
@@ -1322,11 +1351,13 @@ function setAxisLength(value){
 }
 axisRot.onfocus=()=>pushHistory();
 axisRot.oninput=e=>setAxisRot(e.target.value);
+if(typeof axisTargetGrid!=="undefined"){
+ axisTargetGrid.onchange=e=>{const g=currentAxis();if(!g)return;pushHistory();g.dataset.targetGridId=e.target.value;};
+}
 axisLen.onfocus=()=>pushHistory();
 axisLen.oninput=e=>setAxisLength(e.target.value);
 axisOp.onfocus=()=>pushHistory();
 axisOp.oninput=e=>{const g=currentAxis();if(!g)return;g.dataset.opacity=e.target.value;axisOpTxt.innerText=e.target.value;updateAxisVisual(g);};
-function addAxis(d={}){}
 
 function startAxisDrag(e){
  e.preventDefault();
@@ -1343,17 +1374,29 @@ lockAxes.onchange=e=>{const g=currentAxis(); if(g){pushHistory();g.dataset.locke
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
 function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove();refreshAllCorrectionCaptionGroups()}clearSel()}canvas.onclick=clearSel;
-function collect(){
- let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:g.offsetWidth,height:g.offsetHeight,rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));
+function storedDimension(el,key,fallback){
+ const styled=parseFloat(el.style[key]);
+ const saved=num(el.dataset[key],0);
+ return styled>0?styled:saved>0?saved:(key==="width"?el.offsetWidth:el.offsetHeight)||fallback;
+}
+function overlayStoredHeight(el,width){
+ const img=el.querySelector("img");
+ if(img?.naturalWidth&&img.naturalHeight)return width*img.naturalHeight/img.naturalWidth;
+ return storedDimension(el,"height",width);
+}
+function collect(options={}){
+ const includePlanData=options.includePlanData!==false;
+ const currentPlanRef=planDataRef(planData);
+ let grids=[...document.querySelectorAll(".vastu-grid")].map(g=>({gridId:g.dataset.gridId||"",left:parseFloat(g.style.left),top:parseFloat(g.style.top),width:storedDimension(g,"width",480),height:storedDimension(g,"height",480),rotation:num(g.dataset.rot,0),opacity:num(g.dataset.op,62),fontSize:updateGridTypography(g),locked:g.dataset.locked||"false",visible:isLayerVisible(g),directions:[...g.querySelectorAll(".cell input")].map(i=>i.value)}));
  let labels=[...document.querySelectorAll(".text-label")].map(l=>({left:parseFloat(l.style.left),top:parseFloat(l.style.top),text:l.innerText,rotation:num(l.dataset.rot,0),fontSize:num(l.dataset.fs,22),visible:isLayerVisible(l)}));
  let footnotes=[...document.querySelectorAll(".footnote")].map(footnoteState);
  let stickers=[...document.querySelectorAll(".sticker")].map(s=>({left:parseFloat(s.style.left),top:parseFloat(s.style.top),color:s.dataset.color,size:num(s.dataset.size,38),visible:isLayerVisible(s)}));
- let axes=[...document.querySelectorAll(".axis-group")].map(a=>({left:parseFloat(a.style.left),top:parseFloat(a.style.top),locked:a.dataset.locked||"false",visible:isLayerVisible(a),len:num(a.dataset.len,1800),opacity:num(a.dataset.opacity,100),rotation:num(a.dataset.rotation,0),axisIndex:num(a.dataset.axisIndex,1)}));
- let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>({left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width:num(o.dataset.width,parseFloat(o.style.width)||420),height:o.offsetHeight,opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}));
+ let axes=[...document.querySelectorAll(".axis-group")].map(a=>({left:parseFloat(a.style.left),top:parseFloat(a.style.top),locked:a.dataset.locked||"false",visible:isLayerVisible(a),len:num(a.dataset.len,1800),opacity:num(a.dataset.opacity,100),rotation:num(a.dataset.rotation,0),axisIndex:num(a.dataset.axisIndex,1),targetGridId:a.dataset.targetGridId||""}));
+ let overlays=[...document.querySelectorAll(".overlay-wrap")].map(o=>{const width=storedDimension(o,"width",420);return{left:parseFloat(o.style.left),top:parseFloat(o.style.top),src:o.dataset.src,width,height:overlayStoredHeight(o,width),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)}});
  let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
  let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
  let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
- return{version:"4.3",planImageData:planData,planVisible:isLayerVisible(plan),planRotation:num(planRot.value,0),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,footnotes,stickers,axes,overlays,purushas,corrections,correctionGroups:groups};
+ return{version:PROJECT_VERSION,planImageData:includePlanData?planData:undefined,planImageRef:currentPlanRef,planVisible:isLayerVisible(plan),planRotation:num(plan.dataset.rotation,planRot.value),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,footnotes,stickers,axes,overlays,purushas,corrections,correctionGroups:groups};
 }
 function cleanFileBaseName(value,fallback){
  const cleaned=String(value||"").trim().replace(/\.(json|png|pdf)$/i,"").replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim();
@@ -1373,8 +1416,222 @@ function saveProject(){
  projectBaseName=name;
  download(new Blob([JSON.stringify(collect(),null,2)],{type:"application/json"}),name+".json");
 }
-projectInput.onchange=e=>{let f=e.target.files[0];if(!f)return;projectBaseName=cleanFileBaseName(f.name,projectBaseName);let r=new FileReader();r.onload=x=>{try{const p=JSON.parse(x.target.result);pushHistory();isRestoring=true;loadProject(p);isRestoring=false;}catch(err){isRestoring=false;alert("Не удалось открыть проект: файл поврежден или имеет неверный формат.");}};r.readAsText(f)}
-function loadProject(p){document.querySelectorAll(".vastu-grid,.text-label,.footnote,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());clearSel();planData=p.planImageData||"";if(planData)plan.src=planData;else plan.removeAttribute("src");plan.dataset.visible=p.planVisible===false?"false":"true";applyLayerVisibility(plan,"plan");planOpacity.value=p.planOpacity??85;planOpacityTxt.innerText=planOpacity.value;plan.style.opacity=planOpacity.value/100;lastPlanRot=0;setPlanRot(p.planRotation??0);zoomLevel=p.zoomLevel??1;applyZoom();initCorrectionGroups(p.correctionGroups||{});renderCorrectionLibrary(correctionSearch.value);(p.grids||[]).forEach(addGrid);(p.labels||[]).forEach(addTextLabel);(p.footnotes||[]).forEach(addFootnote);(p.stickers||[]).forEach(s=>addSticker(s.color,s));(p.axes||[]).slice(0,MAX_AXIS_GROUPS).forEach(addAxes);(p.overlays||[]).forEach(addOverlayImage);(p.purushas||[]).forEach(addPurushaGrid);(p.corrections||[]).forEach(o=>addCorrection(o.category,o.item,o));applyCorrectionGroups()}
+projectInput.onchange=e=>{
+ const file=e.target.files[0];
+ if(!file)return;
+ const reader=new FileReader();
+ reader.onload=event=>{
+  try{
+   const project=migrateProject(JSON.parse(event.target.result));
+   const previous=historySnapshot();
+   loadProject(project);
+   pushHistory(previous);
+   projectBaseName=cleanFileBaseName(file.name,projectBaseName);
+   scheduleAutosave();
+  }catch(err){
+   alert("Не удалось открыть проект: "+(err instanceof SyntaxError?"файл содержит некорректный JSON.":err.message||"неверный формат файла."));
+  }finally{
+   projectInput.value="";
+  }
+ };
+ reader.onerror=()=>{projectInput.value="";alert("Не удалось прочитать файл проекта.")};
+ reader.readAsText(file);
+};
+function projectFormatError(path,reason){throw new Error("Поле «"+path+"»: "+reason+".")}
+function projectRecord(value,path){
+ if(!value||typeof value!=="object"||Array.isArray(value))projectFormatError(path,"ожидается объект");
+ return value;
+}
+function projectNumber(value,path,{min=-Infinity,max=Infinity,positive=false,integer=false}={}){
+ if((typeof value!=="number"&&typeof value!=="string")||String(value).trim()==="")projectFormatError(path,"ожидается число");
+ const result=Number(value);
+ if(!Number.isFinite(result)||result<min||result>max||(positive&&result<=0)||(integer&&!Number.isInteger(result)))projectFormatError(path,"недопустимое числовое значение");
+ return result;
+}
+function projectBoolean(value,path){
+ if(value!==true&&value!==false&&value!=="true"&&value!=="false")projectFormatError(path,"ожидается логическое значение");
+ return value===true||value==="true";
+}
+function projectText(value,path){
+ if(typeof value!=="string")projectFormatError(path,"ожидается текст");
+ return value;
+}
+function projectImageSource(value,path,{allowEmpty=false}={}){
+ const source=projectText(value,path).trim();
+ if(!source&&allowEmpty)return "";
+ if(!source||/[\u0000-\u001f"<>]/.test(source))projectFormatError(path,"недопустимый источник изображения");
+ if(source.startsWith("data:")){
+  const match=source.match(/^data:image\/[a-z0-9.+-]+((?:;[a-z0-9=.+-]+)*),([\s\S]+)$/i);
+  if(!match)projectFormatError(path,"ожидается изображение в формате data:image");
+  try{
+   if(/;base64(?:;|$)/i.test(match[1])){
+    if(!/^[a-z0-9+/]*={0,2}$/i.test(match[2])||!atob(match[2]).length)throw new Error();
+   }else decodeURIComponent(match[2]);
+  }catch(e){projectFormatError(path,"повреждены данные изображения")}
+  return source;
+ }
+ try{
+  const url=new URL(source,document.baseURI);
+  if(url.protocol!=="https:"&&url.protocol!=="http:")throw new Error();
+ }catch(e){projectFormatError(path,"разрешены только изображения data:image и HTTP(S)")}
+ return source;
+}
+function listFromProject(project,key){
+ if(project[key]===undefined)return [];
+ if(!Array.isArray(project[key]))projectFormatError(key,"ожидается список");
+ return project[key];
+}
+function projectItem(value,path,dimensions={}){
+ const item={...projectRecord(value,path)};
+ ["left","top","rotation","captionDx","captionDy","captionRotation"].forEach(key=>{
+  if(item[key]!==undefined)item[key]=projectNumber(item[key],path+"."+key);
+ });
+ ["visible","locked","keepRatio","showWeight","showCaption","captionHost"].forEach(key=>{
+  if(item[key]!==undefined)item[key]=projectBoolean(item[key],path+"."+key);
+ });
+ if(item.opacity!==undefined)item.opacity=projectNumber(item.opacity,path+".opacity",{min:0,max:100});
+ Object.entries(dimensions).forEach(([key,fallback])=>{
+  if(item[key]===undefined)return;
+  const dimension=projectNumber(item[key],path+"."+key);
+  // Old saves wrote zero for hidden elements; their original dimensions cannot be recovered.
+  item[key]=dimension===0&&item.visible===false?fallback:projectNumber(dimension,path+"."+key,{positive:true});
+ });
+ ["text","title","gridId","targetGridId","caption","captionGroup","unit","material","shape","arrangement"].forEach(key=>{
+  if(item[key]!==undefined)item[key]=projectText(item[key],path+"."+key);
+ });
+ return item;
+}
+function migrateProject(value){
+ const project=projectRecord(value,"проект");
+ const lists=["grids","labels","footnotes","stickers","axes","overlays","purushas","corrections"];
+ if(![...lists,"planImageData"].some(key=>Object.hasOwn(project,key)))projectFormatError("проект","файл не содержит данных проекта");
+ if(project.version!==undefined)projectText(project.version,"version");
+ const version=project.version?.match(/^(\d+)\.(\d+)(?:\.|$)/);
+ const supported=PROJECT_VERSION.split(".").map(Number);
+ if(version&&(Number(version[1])>supported[0]||(Number(version[1])===supported[0]&&Number(version[2])>supported[1])))projectFormatError("version","версия проекта новее поддерживаемой "+PROJECT_VERSION);
+ const p={...project,version:project.version||"legacy"};
+ if(p.planImageData!==undefined)p.planImageData=projectImageSource(p.planImageData,"planImageData",{allowEmpty:true});
+ if(p.planImageRef!==undefined)projectText(p.planImageRef,"planImageRef");
+ if(p.planVisible!==undefined)p.planVisible=projectBoolean(p.planVisible,"planVisible");
+ if(p.planRotation!==undefined)p.planRotation=projectNumber(p.planRotation,"planRotation");
+ if(p.planOpacity!==undefined)p.planOpacity=projectNumber(p.planOpacity,"planOpacity",{min:0,max:100});
+ if(p.zoomLevel!==undefined)p.zoomLevel=projectNumber(p.zoomLevel,"zoomLevel",{positive:true});
+ const dimensions={grids:{width:480,height:480},labels:{},footnotes:{width:240,height:160},stickers:{},axes:{},overlays:{width:420,height:420},purushas:{width:PURUSHA_DEFAULT_WIDTH,height:PURUSHA_DEFAULT_HEIGHT},corrections:{width:80,height:80}};
+ lists.forEach(key=>p[key]=listFromProject(project,key).map((item,index)=>projectItem(item,key+"["+index+"]",dimensions[key])));
+ if(p.axes.length>MAX_AXIS_GROUPS)projectFormatError("axes","допустимо не более двух наборов осей");
+ const gridIds=new Set();
+ p.grids.forEach((grid,index)=>{
+  const path="grids["+index+"]";
+  grid.gridId=grid.gridId||"grid-"+(index+1);
+  if(gridIds.has(grid.gridId))projectFormatError(path+".gridId","идентификатор сетки повторяется");
+  gridIds.add(grid.gridId);
+  if(grid.fontSize!==undefined)grid.fontSize=projectNumber(grid.fontSize,path+".fontSize",{positive:true});
+  if(grid.directions!==undefined){
+   if(!Array.isArray(grid.directions)||grid.directions.length!==9)projectFormatError(path+".directions","ожидаются девять названий направлений");
+   grid.directions.forEach((text,i)=>projectText(text,path+".directions["+i+"]"));
+  }
+ });
+ p.labels.forEach((label,index)=>{if(label.fontSize!==undefined)label.fontSize=projectNumber(label.fontSize,"labels["+index+"].fontSize",{positive:true})});
+ p.footnotes.forEach((note,index)=>{
+  if(note.fontSize!==undefined)note.fontSize=projectNumber(note.fontSize,"footnotes["+index+"].fontSize",{positive:true});
+  if(note.format!==undefined&&!["paragraphs","numbered","bullets"].includes(note.format))projectFormatError("footnotes["+index+"].format","неизвестный формат сноски");
+ });
+ p.stickers.forEach((sticker,index)=>{
+  if(sticker.size!==undefined)sticker.size=projectNumber(sticker.size,"stickers["+index+"].size",{positive:true});
+  if(sticker.color!==undefined&&!["red","green"].includes(sticker.color))projectFormatError("stickers["+index+"].color","неизвестный цвет метки");
+ });
+ p.axes.forEach((axis,index)=>{
+  if(axis.len!==undefined)axis.len=projectNumber(axis.len,"axes["+index+"].len",{positive:true});
+  if(axis.axisIndex!==undefined)axis.axisIndex=projectNumber(axis.axisIndex,"axes["+index+"].axisIndex",{positive:true,integer:true});
+ });
+ p.overlays.forEach((overlay,index)=>overlay.src=projectImageSource(overlay.src,"overlays["+index+"].src"));
+ p.purushas.forEach((purusha,index)=>{if(purusha.src!==undefined)purusha.src=projectImageSource(purusha.src,"purushas["+index+"].src")});
+ p.corrections.forEach((correction,index)=>{
+  const path="corrections["+index+"]";
+  projectText(correction.category,path+".category");projectText(correction.item,path+".item");
+  if(!correctionDefinition(correction.category,correction.item))projectFormatError(path,"неизвестный объект коррекции");
+  if(correction.weight!==undefined)correction.weight=projectNumber(correction.weight,path+".weight",{min:0});
+  ["quantity","turns"].forEach(key=>{if(correction[key]!==undefined)correction[key]=projectNumber(correction[key],path+"."+key,{positive:true,integer:true,max:1000})});
+  ["captionTargetX","captionTargetY"].forEach(key=>{if(correction[key]!==undefined&&correction[key]!==null)correction[key]=projectNumber(correction[key],path+"."+key)});
+ });
+ p.correctionGroups=project.correctionGroups===undefined?{}:{...projectRecord(project.correctionGroups,"correctionGroups")};
+ Object.entries(p.correctionGroups).forEach(([key,value])=>{
+  const group={...projectRecord(value,"correctionGroups."+key)};
+  if(group.visible!==undefined)group.visible=projectBoolean(group.visible,"correctionGroups."+key+".visible");
+  if(group.opacity!==undefined)group.opacity=projectNumber(group.opacity,"correctionGroups."+key+".opacity",{min:0,max:100});
+  p.correctionGroups[key]=group;
+ });
+ return p;
+}
+function clearProjectElements(){
+ document.querySelectorAll(".vastu-grid,.text-label,.footnote,.sticker,.axis,.overlay-wrap,.overlay-img,.purusha-grid,.correction-object").forEach(x=>x.remove());
+ clearSel();
+}
+function restorePlanState(project){
+ planData=resolvePlanData(project);
+ planDataRef(planData);
+ if(planData)plan.src=planData;else plan.removeAttribute("src");
+ plan.dataset.visible=project.planVisible===false?"false":"true";
+ applyLayerVisibility(plan,"plan");
+ planOpacity.value=project.planOpacity??85;
+ planOpacityTxt.innerText=planOpacity.value;
+ plan.style.opacity=planOpacity.value/100;
+ lastPlanRot=0;
+ setPlanRot(project.planRotation??0);
+ zoomLevel=project.zoomLevel??1;
+ applyZoom();
+}
+function restoreProjectItems(project){
+ project.grids.forEach(addGrid);
+ project.labels.forEach(addTextLabel);
+ project.footnotes.forEach(addFootnote);
+ project.stickers.forEach(sticker=>addSticker(sticker.color,sticker));
+ project.axes.forEach(addAxes);
+ project.overlays.forEach(addOverlayImage);
+ project.purushas.forEach(addPurushaGrid);
+ project.corrections.forEach(correction=>addCorrection(correction.category,correction.item,correction));
+}
+function loadProject(project){
+ const p=migrateProject(project);
+ const previous={nodes:[...canvas.childNodes],planAttributes:[...plan.attributes].map(attribute=>[attribute.name,attribute.value]),planData,lastPlanRot,zoomLevel,selection:sel,type:selType,groups:structuredClone(correctionGroups),isRestoring,autosavePaused,counters:[gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter],planDataRefCounter,refs:new Map(planDataRefs),ids:new Map(planDataIds)};
+ cancelAutosave();
+ isRestoring=true;autosavePaused=true;
+ try{
+  clearProjectElements();
+  restorePlanState(p);
+  initCorrectionGroups(p.correctionGroups);
+  renderCorrectionLibrary(correctionSearch.value);
+  restoreProjectItems(p);
+  applyCorrectionGroups();
+ }catch(err){
+  canvas.replaceChildren(...previous.nodes);
+  [...plan.attributes].forEach(attribute=>plan.removeAttribute(attribute.name));
+  previous.planAttributes.forEach(([name,value])=>plan.setAttribute(name,value));
+  planData=previous.planData;lastPlanRot=previous.lastPlanRot;zoomLevel=previous.zoomLevel;correctionGroups=previous.groups;
+  [gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter]=previous.counters;
+  planDataRefCounter=previous.planDataRefCounter;
+  planDataRefs.clear();previous.refs.forEach((value,key)=>planDataRefs.set(key,value));
+  planDataIds.clear();previous.ids.forEach((value,key)=>planDataIds.set(key,value));
+  planRot.value=fmtDeg(lastPlanRot);planDegTxt.innerText=planRot.value;
+  planOpacity.value=num(plan.style.opacity,0.85)*100;planOpacityTxt.innerText=planOpacity.value;
+  applyZoom();renderCorrectionLibrary(correctionSearch.value);
+  if(previous.selection?.isConnected){
+   if(previous.type==="plan")selectPlan();else select(previous.selection,previous.type);
+  }else clearSel();
+  throw err;
+ }finally{
+  isRestoring=previous.isRestoring;autosavePaused=previous.autosavePaused;
+ }
+}
+function handleProjectAutosaveInput(event){
+ if(["projectInput","correctionSearch","imageInput","overlayInput","pngQuality"].includes(event.target.id))return;
+ scheduleAutosave();
+}
+document.addEventListener("input",handleProjectAutosaveInput,true);
+document.addEventListener("change",handleProjectAutosaveInput,true);
+window.addEventListener("pagehide",flushAutosave);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushAutosave()});
+initializeAutosave();
 async function exportPDF(){
  const name=askFileBaseName("Название PDF-файла",exportBaseName);
  if(!name)return;
@@ -1420,10 +1677,32 @@ function includeExportRect(bounds,x,y,width,height,rotation=0){
   bounds.right=Math.max(bounds.right,point.x);bounds.bottom=Math.max(bounds.bottom,point.y);
  });
 }
+function includeExportPoint(bounds,x,y,padding=0){
+ bounds.left=Math.min(bounds.left,x-padding);
+ bounds.top=Math.min(bounds.top,y-padding);
+ bounds.right=Math.max(bounds.right,x+padding);
+ bounds.bottom=Math.max(bounds.bottom,y+padding);
+}
+function includeExportLine(bounds,x1,y1,x2,y2,rotation=0,cx=(x1+x2)/2,cy=(y1+y2)/2,padding=2){
+ const angle=rotation*Math.PI/180;
+ [[x1,y1],[x2,y2]].forEach(([px,py])=>{
+  includeExportPoint(
+   bounds,
+   cx+(px-cx)*Math.cos(angle)-(py-cy)*Math.sin(angle),
+   cy+(px-cx)*Math.sin(angle)+(py-cy)*Math.cos(angle),
+   padding
+  );
+ });
+}
 function exportArea(p,planFrame,labels=[]){
  const bounds={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
  if(planFrame&&p.planVisible!==false)includeExportRect(bounds,planFrame.left,planFrame.top,planFrame.width,planFrame.height,p.planRotation);
  (p.grids||[]).forEach(g=>{if(g.visible!==false)includeExportRect(bounds,g.left,g.top,g.width,g.height,g.rotation)});
+ (p.axes||[]).forEach(a=>{
+  if(a.visible===false)return;
+  const len=num(a.len,1800),y=num(a.top,0)+1,cx=num(a.left,0)+len/2,base=num(a.rotation,0);
+  [90,0,45,135].forEach(rot=>includeExportLine(bounds,a.left,y,a.left+len,y,base+rot,cx,y,3));
+ });
  (p.purushas||[]).forEach(o=>{if(o.visible!==false)includeExportRect(bounds,o.left,o.top,o.width,o.height,o.rotation)});
  (p.overlays||[]).forEach(o=>{if(o.visible!==false)includeExportRect(bounds,o.left,o.top,o.width,o.height,o.rotation)});
  (p.corrections||[]).forEach(o=>{
@@ -1692,9 +1971,10 @@ async function buildSVG(){
   svg+=`</g>`;
  });
  p.axes.forEach(a=>{
-  if(a.visible===false)return;
+ if(a.visible===false)return;
   const len=a.len,op=a.opacity/100,base=num(a.rotation,0);
-  [90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${a.top}" x2="${a.left+len}" y2="${a.top}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${base+rot} ${a.left+len/2} ${a.top})"/>`;});
+  const y=num(a.top,0)+1;
+  [90,0,45,135].forEach(rot=>{svg+=`<line x1="${a.left}" y1="${y}" x2="${a.left+len}" y2="${y}" stroke="black" stroke-width="2" opacity="${op}" transform="rotate(${base+rot} ${a.left+len/2} ${y})"/>`;});
  });
  (p.corrections||[]).forEach(o=>{
  const group=p.correctionGroups[o.category]||{visible:true,opacity:100};
@@ -1866,8 +2146,7 @@ document.addEventListener("keydown",e=>{
   }
 })();
 
-// Перезаписываем startResize: теперь 3×3 сетка меняется за 8 точек.
-// Углы меняют ширину и высоту, стороны — только одну ось.
+// 3×3 сетка меняется за 8 точек: углы меняют ширину и высоту, стороны — только одну ось.
 function startResize(e){
  e.preventDefault();e.stopPropagation();
  const g=e.target.closest(".vastu-grid");
@@ -1913,7 +2192,7 @@ function startResize(e){
  bind();
 }
 
-// Перезаписываем startPurushaResize: Пуруша-сетка тоже получает 8 точек.
+// Пуруша-сетка тоже получает 8 точек.
 function startPurushaResize(e){
  e.preventDefault();e.stopPropagation();
  const wrap=e.target.closest(".purusha-grid");
