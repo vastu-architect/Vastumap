@@ -1,7 +1,7 @@
 let sel=null,selType="",gridCounter=0,labelCounter=0,footnoteCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,captionGroupCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false,projectBaseName="vastu-project",exportBaseName="vastu-map";
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
 plan.dataset.visible="true";
-const PROJECT_VERSION="4.4";
+const PROJECT_VERSION="4.5";
 const AUTOSAVE_KEY="vastu-studio-autosave-v1";
 let planDataRefCounter=0;
 let autosaveTimer=null,autosavePaused=false,recoveryPending=false;
@@ -24,7 +24,13 @@ function resolvePlanData(project){
  if(project.planImageRef&&planDataRefs.has(project.planImageRef))return planDataRefs.get(project.planImageRef);
  return "";
 }
-function clearSel(){document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));sel=null;selType="";showProperties("");refreshLayers()}
+let measurementSceneChangePending=false;
+function notifyMeasurementSceneChanged(){
+ if(measurementSceneChangePending)return;
+ measurementSceneChangePending=true;
+ queueMicrotask(()=>{measurementSceneChangePending=false;window.VastuMeasurements?.sceneChanged()});
+}
+function clearSel(){document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));sel=null;selType="";showProperties("");refreshLayers();notifyMeasurementSceneChanged()}
 function isLayerVisible(el){return !el.dataset||el.dataset.visible!=="false"}
 function applyLayerVisibility(el,type=""){
  if(type==="correction"||el.classList?.contains("correction-object")){applyCorrectionGroup(el);return;}
@@ -164,14 +170,14 @@ function restoreHistory(source,target,emptyMessage){
 }
 function undoLast(){restoreHistory(historyStack,redoStack,"Нет действия для отмены")}
 function redoLast(){restoreHistory(redoStack,historyStack,"Нет действия для повтора")}
-function applyZoom(){canvas.style.transformOrigin="top center";canvas.style.transform=`scale(${zoomLevel})`;zoomTxt.innerText=Math.round(zoomLevel*100)}
+function applyZoom(){canvas.style.transformOrigin="top center";canvas.style.transform=`scale(${zoomLevel})`;zoomTxt.innerText=Math.round(zoomLevel*100);centerWorkspace()}
 function zoomAll(delta){pushHistory();zoomLevel=Math.max(0.25,Math.min(3,zoomLevel+delta));applyZoom()}
 function togglePanel(){document.querySelector(".layout").classList.toggle("panel-hidden")}
 function toggleCorrectionFocus(){
  const active=document.body.classList.toggle("correction-focus");
  if(typeof focusModeBtn!=="undefined")focusModeBtn.innerText=active?"Фокус: вкл":"Фокус: выкл";
 }
-imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{planData=x.target.result;plan.src=planData;selectPlan();scheduleAutosave()};r.readAsDataURL(f)}
+imageInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{MeasurementState.replace(MeasurementState.defaults());planData=x.target.result;plan.src=planData;selectPlan();scheduleAutosave()};r.readAsDataURL(f)}
 overlayInput.onchange=e=>{let f=e.target.files[0];if(!f)return;pushHistory();let r=new FileReader();r.onload=x=>{addOverlayImage({src:x.target.result});scheduleAutosave()};r.readAsDataURL(f)}
 planRot.onfocus=()=>pushHistory();planRot.oninput=()=>setPlanRot(planRot.value);planOpacity.onfocus=()=>pushHistory();planOpacity.oninput=e=>{plan.style.opacity=e.target.value/100;planOpacityTxt.innerText=e.target.value};
 function setPlanRot(v){
@@ -197,6 +203,7 @@ function setPlanRot(v){
   }
  });
  lastPlanRot=n;
+ notifyMeasurementSceneChanged();
 }
 function stepPlan(x){pushHistory();setPlanRot((+planRot.value||0)+x)}
 function updateGridTypography(grid){
@@ -221,6 +228,9 @@ function updateGridTypography(grid){
 }
 function allocateGridId(){
  const used=new Set([...canvas.querySelectorAll(".vastu-grid")].map(grid=>grid.dataset.gridId));
+ const measurements=MeasurementState.get();
+ if(measurements.activeGridId)used.add(measurements.activeGridId);
+ Object.values(measurements.objects).forEach(object=>{if(object.gridId)used.add(object.gridId)});
  let index=gridCounter;
  while(used.has("grid-"+index))index++;
  return "grid-"+index;
@@ -245,7 +255,7 @@ function addGrid(d={}){
  g.onmousedown=startDrag;g.ontouchstart=startDrag;g.onclick=e=>{e.stopPropagation();select(g,"grid")};
  canvas.appendChild(g);updateGridTypography(g);applyLayerVisibility(g,"grid");select(g,"grid");
 }
-function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");showProperties(t);if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="footnote")updFootnotePanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();if(t==="correction")updCorrectionPanel();refreshLayers()}
+function select(e,t){clearSel();sel=e;selType=t;e.classList.add("selected");showProperties(t);if(t==="grid")updGridPanel();if(t==="label")updLabelPanel();if(t==="footnote")updFootnotePanel();if(t==="axis")updAxisPanel();if(t==="overlay")updOverlayPanel();if(t==="purusha")updPurushaPanel();if(t==="correction")updCorrectionPanel();refreshLayers();notifyMeasurementSceneChanged()}
 function updGridPanel(){
  if(!sel||selType!="grid")return;
  updateGridTypography(sel);
@@ -1373,7 +1383,7 @@ function startAxisDrag(e){
 lockAxes.onchange=e=>{const g=currentAxis(); if(g){pushHistory();g.dataset.locked=e.target.checked?"true":"false";g.classList.toggle("locked",e.target.checked);refreshLayers()}};
 
 function prepGeneric(el,type){el.onmousedown=e=>{e.preventDefault();e.stopPropagation();select(el,type);if((type==="overlay"||type==="purusha"||type==="correction")&&el.dataset.locked==="true"){drag=null;return;}pushHistory();let p=point(e);drag={type:"generic",el,x:p.x,y:p.y,l:parseFloat(el.style.left),t:parseFloat(el.style.top)};bind()};el.ontouchstart=el.onmousedown;el.onclick=e=>{e.stopPropagation();select(el,type)}}
-function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove();refreshAllCorrectionCaptionGroups()}clearSel()}canvas.onclick=clearSel;
+function delSel(){if(!sel)return;pushHistory();if(selType==="plan"){MeasurementState.replace(MeasurementState.defaults());planData="";plan.removeAttribute("src");planOpacity.value=85;plan.style.opacity=.85;planOpacityTxt.innerText="85";lastPlanRot=0;setPlanRot(0)}else{sel.remove();refreshAllCorrectionCaptionGroups()}clearSel()}canvas.onclick=clearSel;
 function storedDimension(el,key,fallback){
  const styled=parseFloat(el.style[key]);
  const saved=num(el.dataset[key],0);
@@ -1383,6 +1393,25 @@ function overlayStoredHeight(el,width){
  const img=el.querySelector("img");
  if(img?.naturalWidth&&img.naturalHeight)return width*img.naturalHeight/img.naturalWidth;
  return storedDimension(el,"height",width);
+}
+const measurementObjectSelectors={grids:".vastu-grid",labels:".text-label",footnotes:".footnote",stickers:".sticker",axes:".axis-group",overlays:".overlay-wrap",purushas:".purusha-grid",corrections:".correction-object"};
+function ensureMeasurementObjectId(el){
+ if(el.dataset.measurementId)return el.dataset.measurementId;
+ const used=new Set([...canvas.querySelectorAll("[data-measurement-id]")].map(item=>item.dataset.measurementId));
+ Object.keys(MeasurementState.get().objects).forEach(id=>used.add(id));
+ Object.values(MeasurementState.get().objects).forEach(object=>{if(object.targetId)used.add(object.targetId)});
+ let index=1;
+ while(used.has("measure-"+index))index++;
+ el.dataset.measurementId="measure-"+index;
+ return el.dataset.measurementId;
+}
+function restoreMeasurementObjectIds(project){
+ Object.entries(measurementObjectSelectors).forEach(([key,selector])=>{
+  [...canvas.querySelectorAll(selector)].forEach((el,index)=>{
+   if(project[key][index]?.measurementId)el.dataset.measurementId=project[key][index].measurementId;
+  });
+ });
+ Object.values(measurementObjectSelectors).forEach(selector=>canvas.querySelectorAll(selector).forEach(ensureMeasurementObjectId));
 }
 function collect(options={}){
  const includePlanData=options.includePlanData!==false;
@@ -1396,7 +1425,11 @@ function collect(options={}){
  let purushas=[...document.querySelectorAll(".purusha-grid")].map(o=>{let p={left:parseFloat(o.style.left),top:parseFloat(o.style.top),width:num(o.dataset.width,parseFloat(o.style.width)||PURUSHA_DEFAULT_WIDTH),height:num(o.dataset.height,parseFloat(o.style.height)||PURUSHA_DEFAULT_HEIGHT),opacity:num(o.dataset.opacity,100),locked:o.dataset.locked||"false",visible:isLayerVisible(o),rotation:num(o.dataset.rotation,0)};if(o.dataset.src&&o.dataset.src!==PURUSHA_GRID_SRC)p.src=o.dataset.src;return p});
  let corrections=[...document.querySelectorAll(".correction-object")].map(correctionState);
  let groups=Object.fromEntries(Object.entries(correctionGroups).map(([key,value])=>[key,{visible:value.visible,opacity:value.opacity}]));
- return{version:PROJECT_VERSION,planImageData:includePlanData?planData:undefined,planImageRef:currentPlanRef,planVisible:isLayerVisible(plan),planRotation:num(plan.dataset.rotation,planRot.value),planOpacity:num(planOpacity.value,85),zoomLevel,grids,labels,footnotes,stickers,axes,overlays,purushas,corrections,correctionGroups:groups};
+ const objects={grids,labels,footnotes,stickers,axes,overlays,purushas,corrections};
+ Object.entries(measurementObjectSelectors).forEach(([key,selector])=>{
+  [...canvas.querySelectorAll(selector)].forEach((el,index)=>objects[key][index].measurementId=ensureMeasurementObjectId(el));
+ });
+ return{version:PROJECT_VERSION,planImageData:includePlanData?planData:undefined,planImageRef:currentPlanRef,planVisible:isLayerVisible(plan),planRotation:num(plan.dataset.rotation,planRot.value),planOpacity:num(planOpacity.value,85),zoomLevel,...objects,correctionGroups:groups,measurements:MeasurementState.serialize()};
 }
 function cleanFileBaseName(value,fallback){
  const cleaned=String(value||"").trim().replace(/\.(json|png|pdf)$/i,"").replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim();
@@ -1496,7 +1529,7 @@ function projectItem(value,path,dimensions={}){
   // Old saves wrote zero for hidden elements; their original dimensions cannot be recovered.
   item[key]=dimension===0&&item.visible===false?fallback:projectNumber(dimension,path+"."+key,{positive:true});
  });
- ["text","title","gridId","targetGridId","caption","captionGroup","unit","material","shape","arrangement"].forEach(key=>{
+ ["text","title","gridId","targetGridId","caption","captionGroup","unit","material","shape","arrangement","measurementId"].forEach(key=>{
   if(item[key]!==undefined)item[key]=projectText(item[key],path+"."+key);
  });
  return item;
@@ -1518,6 +1551,15 @@ function migrateProject(value){
  if(p.zoomLevel!==undefined)p.zoomLevel=projectNumber(p.zoomLevel,"zoomLevel",{positive:true});
  const dimensions={grids:{width:480,height:480},labels:{},footnotes:{width:240,height:160},stickers:{},axes:{},overlays:{width:420,height:420},purushas:{width:PURUSHA_DEFAULT_WIDTH,height:PURUSHA_DEFAULT_HEIGHT},corrections:{width:80,height:80}};
  lists.forEach(key=>p[key]=listFromProject(project,key).map((item,index)=>projectItem(item,key+"["+index+"]",dimensions[key])));
+ const measurementIds=new Set();
+ lists.forEach(key=>p[key].forEach((item,index)=>{
+  if(item.measurementId===undefined)return;
+  const path=key+"["+index+"].measurementId",id=item.measurementId;
+  if(id.length>128||!/^[a-z0-9][a-z0-9_.:-]*$/i.test(id)||["__proto__","prototype","constructor"].includes(id))projectFormatError(path,"недопустимый идентификатор объекта");
+  if(measurementIds.has(id))projectFormatError(path,"идентификатор объекта повторяется");
+  measurementIds.add(id);
+ }));
+ p.measurements=MeasurementState.normalize(project.measurements);
  if(p.axes.length>MAX_AXIS_GROUPS)projectFormatError("axes","допустимо не более двух наборов осей");
  const gridIds=new Set();
  p.grids.forEach((grid,index)=>{
@@ -1590,14 +1632,16 @@ function restoreProjectItems(project){
  project.overlays.forEach(addOverlayImage);
  project.purushas.forEach(addPurushaGrid);
  project.corrections.forEach(correction=>addCorrection(correction.category,correction.item,correction));
+ restoreMeasurementObjectIds(project);
 }
 function loadProject(project){
  const p=migrateProject(project);
- const previous={nodes:[...canvas.childNodes],planAttributes:[...plan.attributes].map(attribute=>[attribute.name,attribute.value]),planData,lastPlanRot,zoomLevel,selection:sel,type:selType,groups:structuredClone(correctionGroups),isRestoring,autosavePaused,counters:[gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter],planDataRefCounter,refs:new Map(planDataRefs),ids:new Map(planDataIds)};
+ const previous={nodes:[...canvas.childNodes],planAttributes:[...plan.attributes].map(attribute=>[attribute.name,attribute.value]),planData,lastPlanRot,zoomLevel,selection:sel,type:selType,groups:structuredClone(correctionGroups),measurements:MeasurementState.serialize(),isRestoring,autosavePaused,counters:[gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter],planDataRefCounter,refs:new Map(planDataRefs),ids:new Map(planDataIds)};
  cancelAutosave();
  isRestoring=true;autosavePaused=true;
  try{
   clearProjectElements();
+  MeasurementState.replace(p.measurements);
   restorePlanState(p);
   initCorrectionGroups(p.correctionGroups);
   renderCorrectionLibrary(correctionSearch.value);
@@ -1608,6 +1652,7 @@ function loadProject(project){
   [...plan.attributes].forEach(attribute=>plan.removeAttribute(attribute.name));
   previous.planAttributes.forEach(([name,value])=>plan.setAttribute(name,value));
   planData=previous.planData;lastPlanRot=previous.lastPlanRot;zoomLevel=previous.zoomLevel;correctionGroups=previous.groups;
+  MeasurementState.replace(previous.measurements);
   [gridCounter,labelCounter,footnoteCounter,stickerCounter,axisCounter,overlayCounter,purushaCounter,correctionCounter,captionGroupCounter]=previous.counters;
   planDataRefCounter=previous.planDataRefCounter;
   planDataRefs.clear();previous.refs.forEach((value,key)=>planDataRefs.set(key,value));
@@ -1621,11 +1666,13 @@ function loadProject(project){
   throw err;
  }finally{
   isRestoring=previous.isRestoring;autosavePaused=previous.autosavePaused;
+  notifyMeasurementSceneChanged();
  }
 }
 function handleProjectAutosaveInput(event){
  if(["projectInput","correctionSearch","imageInput","overlayInput","pngQuality"].includes(event.target.id))return;
  scheduleAutosave();
+ notifyMeasurementSceneChanged();
 }
 document.addEventListener("input",handleProjectAutosaveInput,true);
 document.addEventListener("change",handleProjectAutosaveInput,true);
@@ -1713,6 +1760,11 @@ function exportArea(p,planFrame,labels=[]){
  (p.footnotes||[]).forEach(n=>{if(n.visible!==false)includeExportRect(bounds,n.left,n.top,n.width,n.height)});
  (p.stickers||[]).forEach(s=>{if(s.visible!==false)includeExportRect(bounds,s.left,s.top,s.size,s.size)});
  labels.forEach(label=>includeExportRect(bounds,label.x,label.y,label.width,label.height,label.rotation||0));
+ if(p.measurements?.export){
+  (window.VastuMeasurements?.exportBounds?.(p)||[]).forEach(point=>{
+   if(Number.isFinite(point.x)&&Number.isFinite(point.y))includeExportPoint(bounds,point.x,point.y);
+  });
+ }
  if(!Number.isFinite(bounds.left))return{left:0,top:0,width:1600,height:1200};
  const padding=42;
  const left=Math.max(0,Math.floor(bounds.left-padding)),top=Math.max(0,Math.floor(bounds.top-padding));
@@ -1944,6 +1996,7 @@ function canvasToPDFBlob(canvas){
 function esc(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&apos;")}
 async function buildSVG(){
  const p=collect();
+ if(p.measurements?.export)window.VastuMeasurements?.captureExport?.(p);
  const frame=p.planImageData&&p.planVisible!==false?await displayedPlanFrame():null;
  const exportLabels=layoutExportCorrectionLabels(p);
  const area=exportArea(p,frame,exportLabels);
@@ -1951,6 +2004,7 @@ async function buildSVG(){
  if(frame){
   svg+=`<image href="${p.planImageData}" x="${frame.left}" y="${frame.top}" width="${frame.width}" height="${frame.height}" opacity="${p.planOpacity/100}" preserveAspectRatio="none" transform="rotate(${p.planRotation} ${frame.cx} ${frame.cy})"/>`;
  }
+ if(p.measurements?.export)svg+=window.VastuMeasurements?.exportGridSVG?.(p)||"";
  for(const o of p.purushas||[]){
   if(o.visible===false) continue;
   const src=await asDataURL(o.src||PURUSHA_GRID_SRC);
@@ -1986,6 +2040,7 @@ async function buildSVG(){
  p.labels.forEach(l=>{if(l.visible!==false)svg+=`<text x="${l.left}" y="${l.top+l.fontSize}" font-size="${l.fontSize}" font-weight="700" transform="rotate(${l.rotation} ${l.left} ${l.top+l.fontSize})">${esc(l.text)}</text>`;});
  (p.footnotes||[]).forEach(note=>svg+=exportFootnoteSVG(note));
  p.stickers.forEach(s=>{if(s.visible!==false)svg+=`<text x="${s.left}" y="${s.top+s.size*.9}" font-size="${s.size}" fill="${s.color==='green'?'#18a558':'#d62828'}">★</text>`;});
+ if(p.measurements?.export)svg+=await window.VastuMeasurements?.exportSVG?.(p)||"";
  return{svg:svg+"</svg>",width:area.width,height:area.height};
 }
 
@@ -2001,6 +2056,7 @@ function selectPlan(){
  selType="plan";
  showProperties("plan");
  refreshLayers();
+ notifyMeasurementSceneChanged();
 }
 function refreshLayers(){
  const list=document.getElementById("layersList");
@@ -2067,12 +2123,14 @@ function refreshLayers(){
   list.appendChild(button);
  });
  if(activeButton)requestAnimationFrame(()=>activeButton.scrollIntoView({block:"nearest"}));
+ notifyMeasurementSceneChanged();
 }
 function centerWorkspace(){
  const viewport=document.querySelector(".workspace");
  if(!viewport)return;
- viewport.scrollLeft=Math.max(0,(canvas.offsetWidth*zoomLevel-viewport.clientWidth)/2);
- viewport.scrollTop=Math.max(0,(canvas.offsetHeight*zoomLevel-viewport.clientHeight)/2);
+ const canvasRect=canvas.getBoundingClientRect(),viewportRect=viewport.getBoundingClientRect();
+ viewport.scrollLeft+=(canvasRect.left+canvasRect.width/2)-(viewportRect.left+viewport.clientLeft+viewport.clientWidth/2);
+ viewport.scrollTop+=(canvasRect.top+canvasRect.height/2)-(viewportRect.top+viewport.clientTop+viewport.clientHeight/2);
 }
 initCorrectionLibrary();
 isRestoring=true;

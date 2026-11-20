@@ -40,6 +40,7 @@
 
   <main class="layout">
     <aside class="layers-panel">
+      <button class="mobile-object-toggle" id="mobileObjectsToggle" type="button" aria-expanded="false">Слои и объекты</button>
       <section class="panel-head">
         <h2>Слои</h2>
         <p>Управление объектами проекта</p>
@@ -57,6 +58,34 @@
         <button onclick="showAllLayers()">Показать все</button>
       </div>
       <div class="layers-list" id="layersList" aria-label="Слои проекта"></div>
+      <details class="measurement-tools" id="measurementTools">
+        <summary>Размеры плана</summary>
+        <div class="measurement-tools-body">
+          <label class="switch-line"><input type="checkbox" id="measureVisible" checked> Разметка на плане</label>
+          <h3 class="measurement-step-title">1. Задайте масштаб</h3>
+          <p class="hint" id="measureScaleStatus">Отметьте отрезок известной длины</p>
+          <button class="full-action" id="scaleDrawBtn" type="button">Отметить известную длину</button>
+          <div id="scaleLengthRow" hidden>
+            <label>Длина отмеченного отрезка, см<input id="scaleLengthCm" inputmode="decimal" placeholder="Например, 500"></label>
+            <button class="full-action" id="calibrationApplyBtn" type="button">Применить масштаб</button>
+          </div>
+          <button class="measurement-text-action" id="scaleResetBtn" type="button" hidden>Сбросить масштаб</button>
+          <p class="measurement-instruction" id="measureInstruction" role="status"></p>
+          <button id="measurementCancelBtn" type="button" hidden>Отменить разметку</button>
+          <div class="measurement-section-head"><strong>2. Отметьте стены</strong><button id="wallDrawBtn" type="button">+ Стена</button></div>
+          <div id="measurementWalls" class="measurement-walls"></div>
+          <h3 class="measurement-step-title">3. Выберите объект на плане</h3>
+          <p class="hint">Отступы от центра появятся в свойствах объекта.</p>
+          <details class="measurement-display-options">
+            <summary>Сетка и экспорт</summary>
+            <label class="switch-line"><input id="measureShowWalls" type="checkbox" checked> Стены и отступы</label>
+            <label class="switch-line"><input id="metricGridVisible" type="checkbox"> Клетчатая сетка</label>
+            <label id="metricGridStepRow" hidden>Размер клетки, см<input id="metricGridStep" inputmode="decimal" value="25"></label>
+            <p class="hint" id="metricGridStatus"></p>
+            <label class="switch-line"><input id="measureExport" type="checkbox"> Разметка в PDF и PNG</label>
+          </details>
+        </div>
+      </details>
       <section class="correction-library">
         <div class="library-head">
           <h3>Коррекции</h3>
@@ -86,6 +115,7 @@
           <span>Совместите план с сеткой и направлениями</span>
         </div>
         <div class="zoom-controls">
+          <button id="measurementToggleBtn" type="button" aria-controls="measurementTools" aria-expanded="false">Размеры</button>
           <button class="focus-action" id="focusModeBtn" onclick="toggleCorrectionFocus()">Фокус: выкл</button>
           <button onclick="zoomAll(-0.1)">-</button>
           <span><span id="zoomTxt">100</span>%</span>
@@ -121,6 +151,19 @@
         <h2 id="propertyTitle">Сетка направлений</h2>
         <button class="delete-layer" onclick="delSel()">Удалить</button>
       </div>
+
+      <details class="measurement-object-panel" id="objectMeasurements" open hidden>
+        <summary>Положение объекта</summary>
+        <label class="switch-line"><input type="checkbox" id="objectMeasureVisible" checked> Линии на плане</label>
+        <p class="hint">Все расстояния — от центра объекта</p>
+        <div id="measurementReadouts" class="measurement-readouts"></div>
+        <details class="measurement-object-advanced">
+        <summary>Другой объект и центр сетки</summary>
+        <label>Расстояние до объекта<select id="measurementTarget"></select></label>
+        <label class="switch-line"><input id="measureShowCenter" type="checkbox"> От центра васту-сетки</label>
+        <label id="objectGridRow" hidden>Сетка отсчёта<select id="objectMeasureGrid"></select></label>
+        </details>
+      </details>
 
       <section class="property-group active" data-properties="grid">
         <p class="hint">Передвигайте сетку на плане, вращайте за оранжевую точку и изменяйте размер за маркеры.</p>
@@ -314,6 +357,9 @@
     </section>
   </div>
   <script src="corrections.js" defer></script>
+  <script src="measurement-geometry.js" defer></script>
+  <script src="measurement-state.js" defer></script>
   <script src="script.js" defer></script>
+  <script src="measurements.js" defer></script>
 </body>
 </html>
