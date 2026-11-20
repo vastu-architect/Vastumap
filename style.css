@@ -68,6 +68,7 @@ input[type=number],input:not([type]),#labelText,select{
 }
 
 .app-header{
+  flex-shrink:0;
   min-height:72px;
   padding:12px 22px;
   display:flex;
@@ -653,6 +654,57 @@ input[type=number],input:not([type]),#labelText,select{
 .canvas-welcome strong{color:#514f48;font-size:16px}
 .canvas-welcome span{font-size:13px}
 .canvas:has(#planImage[src]:not([src=""])) .canvas-welcome{display:none}
+
+.measurement-tools{flex:0 0 auto;margin:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff)}
+.mobile-object-toggle{display:none}
+.measurement-tools>summary,.measurement-object-panel>summary{padding:11px 12px;font-size:12px;font-weight:700;cursor:pointer}
+.measurement-tools-body{max-height:48vh;overflow:auto;padding:0 10px 10px}
+.measurement-tools label,.measurement-object-panel label{display:block;font-size:12px;margin:9px 0}
+.measurement-tools .switch-line,.measurement-object-panel .switch-line{display:flex;gap:7px;align-items:center}
+.measurement-tools input:not([type="checkbox"]),.measurement-tools select,.measurement-object-panel select{width:100%;min-width:0;margin-top:5px;padding:7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+.measurement-tools button,.measurement-object-panel button{font-size:11px;white-space:normal}
+#measurementToggleBtn{width:auto;min-width:65px;padding:0 8px;font-size:12px}
+#focusModeBtn{width:auto;min-width:82px;font-size:12px;white-space:nowrap}
+.measurement-text-action{padding:5px 0;background:transparent;border:0;text-decoration:underline;color:var(--muted)}
+.measurement-instruction{font-size:12px;line-height:1.45;color:var(--blue);margin:8px 0}
+.measurement-instruction:empty{display:none}
+.measurement-section-head{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-top:12px;font-size:12px}
+.measurement-section-head button{padding:5px 8px;white-space:nowrap;min-width:62px}
+.measurement-wall{padding:7px 0;border-bottom:1px solid var(--line)}
+.measurement-wall-row{display:flex;align-items:center;gap:4px}
+.measurement-wall-row input{flex:1;width:50px!important;margin:0!important}
+.measurement-wall-row button{flex:0 0 auto;padding:5px;min-width:26px}
+.measurement-wall small{display:block;margin:4px 0;font-size:10px;color:var(--muted)}
+.measurement-wall.is-hidden{opacity:.6}
+.measurement-display-options{margin:10px 0;border-bottom:1px solid var(--line)}
+.measurement-display-options>summary,.measurement-object-advanced>summary{font-size:11px;color:var(--muted);padding:9px 0;cursor:pointer}
+.measurement-step-title{font-size:12px;margin:12px 0 6px}
+.measurement-object-advanced{margin-top:8px;border-top:1px solid var(--line)}
+.measurement-object-panel{margin:0 0 16px;border:1px solid var(--line);border-radius:10px;padding:0 10px 10px}
+.measurement-object-panel[hidden]{display:none}
+.measurement-object-panel>summary{padding-left:0;padding-right:0}
+.measurement-readouts{font-size:12px;margin-top:12px}
+.measurement-readouts h4{font-size:11px;margin:12px 0 5px;color:var(--muted)}
+.measurement-readout{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.measurement-readout span{min-width:0;overflow-wrap:anywhere}
+.measurement-readout strong{white-space:nowrap;font-variant-numeric:tabular-nums}
+.measurement-wall-extra>summary{font-size:11px;padding:5px 0;color:var(--muted);cursor:pointer}
+.measurement-warning{color:#a54532!important}
+.measurement-metric-grid{position:absolute;left:0;top:0;width:1600px;height:1200px;pointer-events:none;z-index:2;overflow:visible}
+.measurement-overlay{position:absolute;left:0;top:0;width:1600px;height:1200px;pointer-events:none;z-index:45;overflow:visible}
+.canvas.measurement-drawing{cursor:crosshair;touch-action:none}
+@media(max-width:720px){
+ .measurement-tools-body{max-height:50vh}
+ .work-area{grid-template-rows:auto auto minmax(0,1fr) 37px}
+ .canvas-toolbar{gap:6px;flex-wrap:wrap;justify-content:flex-start;min-height:61px;padding:8px 12px}
+ .canvas-title{width:100%}.canvas-title span{display:none}.canvas-title strong{font-size:12px}
+ .zoom-controls{gap:4px;max-width:100%}#focusModeBtn{width:auto;min-width:82px;font-size:12px;white-space:nowrap}
+ .measurement-tools{margin:8px 0}
+ .mobile-object-toggle{display:block;margin:8px 0;min-height:35px;flex:0 0 auto}
+ .layers-panel:not(.mobile-objects-open)>:not(#measurementTools):not(.mobile-object-toggle){display:none}
+ .layers-panel.mobile-objects-open{max-height:65vh;overflow-y:auto}
+}
+@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay{display:none!important}}
 
 #planImage{
   position:absolute;
@@ -1311,6 +1363,7 @@ body.exporting .selected,body.exporting .locked{outline:none !important}
 @media (max-width:1100px){
   body{overflow:auto}
   .app-header{height:auto;min-height:72px;align-items:flex-start;flex-direction:column}
+  .project-actions{width:100%;max-width:100%;flex:0 0 auto;justify-content:flex-start}
   .layout{height:auto;min-height:calc(100vh - 110px);grid-template-columns:214px minmax(430px,1fr)}
   .properties-panel{grid-column:1/3;border-left:0;border-top:1px solid var(--line);max-height:none}
 }
@@ -1323,6 +1376,13 @@ body.exporting .selected,body.exporting .locked{outline:none !important}
   .correction-library{min-height:380px;flex-basis:380px}
   .work-area{height:66vh;flex-shrink:0}
   .properties-panel{border-top:1px solid var(--line)}
+}
+
+@media (min-width:721px) and (max-width:1100px){
+  .work-area,.layers-panel{height:calc(100vh - 180px);min-height:480px}
+  .measurement-section-head{display:block}
+  .measurement-section-head strong{display:block;margin-bottom:6px}
+  .measurement-section-head button{width:100%;min-height:36px}
 }
 
 @media print{
