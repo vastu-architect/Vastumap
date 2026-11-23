@@ -46,7 +46,7 @@
   return{a,b};
  }
  function defaults(){
-  return{version:1,calibration:null,walls:[],objects:{},visible:true,showWalls:true,showObjects:true,showCenter:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
+  return{version:1,calibration:null,walls:[],objects:{},visible:true,showWalls:true,showObjects:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
  }
  function normalize(data){
   if(data===undefined)return defaults();
@@ -75,7 +75,7 @@
     result.objects[objectId]={visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,gridId:own(entry,"gridId")?id(entry.gridId,path+".gridId",{empty:true}):"",targetId:own(entry,"targetId")?id(entry.targetId,path+".targetId",{empty:true}):"",label:own(entry,"label")?text(entry.label,path+".label"):""};
    });
   }
-  ["visible","showWalls","showObjects","showCenter","showGrid","export"].forEach(key=>{if(own(source,key))result[key]=bool(source[key],key)});
+  ["visible","showWalls","showObjects","showCenter","showLabels","showGrid","export"].forEach(key=>{if(own(source,key))result[key]=bool(source[key],key)});
   if(own(source,"gridStepCm"))result.gridStepCm=number(source.gridStepCm,"gridStepCm",{positive:true,max:MAX_LENGTH_CM});
   if(own(source,"activeGridId"))result.activeGridId=id(source.activeGridId,"activeGridId",{empty:true});
   return result;
