@@ -2,7 +2,7 @@
 (function(){
  'use strict';
  const G=window.MeasurementGeometry,S=window.MeasurementState,NS='http://www.w3.org/2000/svg',ORIGIN={x:800,y:600};
- const ids=['measurementTools','measurementToggleBtn','measureVisible','measureScaleStatus','scaleDrawBtn','scaleLengthRow','scaleLengthCm','calibrationApplyBtn','scaleResetBtn','measureInstruction','measurementCancelBtn','wallDrawBtn','measurementWalls','measureShowWalls','metricGridVisible','metricGridStep','metricGridStepRow','metricGridStatus','measureExport','objectMeasurements','objectMeasureVisible','objectMeasureGrid','objectGridRow','measureShowCenter','measurementTarget','measurementReadouts'];
+ const ids=['measurementTools','measurementToggleBtn','measureVisible','measureScaleStatus','scaleDrawBtn','scaleLengthRow','scaleLengthCm','calibrationApplyBtn','scaleResetBtn','measureInstruction','measurementCancelBtn','wallDrawBtn','measurementWalls','measureShowWalls','metricGridVisible','metricGridStep','metricGridStepRow','metricGridStatus','measureExport','objectMeasurements','objectMeasureVisible','objectMeasureGrid','objectGridRow','measureShowCenter','measurementTarget','measurementReadouts','measureShowLabels','placementStrip','placementReadout','transformModeBtn'];
  const ui=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
  const SELECTOR='.vastu-grid,.purusha-grid,.axis-group,.overlay-wrap,.correction-object,.text-label,.footnote,.sticker';
  function svgElement(id,className){const node=document.createElementNS(NS,'svg');node.id=id;node.classList.add(className);node.setAttribute('viewBox','0 0 1600 1200');node.setAttribute('aria-hidden','true');canvas.appendChild(node);return node}
@@ -50,7 +50,7 @@
  }
  function syncControls(){
   const s=state(),el=selected(),enabled=s.calibration||s.walls.length||Object.keys(s.objects).length||ui.measurementTools.open;
-  [['measureVisible','visible'],['measureShowWalls','showWalls'],['metricGridVisible','showGrid'],['measureExport','export'],['measureShowCenter','showCenter']].forEach(([id,key])=>ui[id].checked=s[key]);
+  [['measureVisible','visible'],['measureShowWalls','showWalls'],['metricGridVisible','showGrid'],['measureExport','export'],['measureShowCenter','showCenter'],['measureShowLabels','showLabels']].forEach(([id,key])=>ui[id].checked=s[key]);
   ui.measureScaleStatus.textContent=s.calibration?'Масштаб задан: отрезок '+cm(s.calibration.lengthCm):'Масштаб не задан';
   ui.scaleDrawBtn.textContent=s.calibration?'Изменить масштаб':'Отметить известную длину';
   ui.scaleResetBtn.hidden=!s.calibration;ui.scaleLengthRow.hidden=!draft;ui.measurementCancelBtn.hidden=!drawing&&!draft;ui.calibrationApplyBtn.disabled=!draft;
@@ -120,6 +120,16 @@
   if(state().showCenter&&!view.centerInfo)html+='<p class="hint">Выберите видимую васту-сетку для отсчёта.</p>';
   output.innerHTML=html||'<p class="hint">Отметьте нужные стены или выберите второй объект.</p>';
  }
+ function renderPlacementReadout(view){
+  const rows=view.rows||[];
+  ui.placementReadout.hidden=!view.point||!factor()||!rows.length;
+  if(!ui.placementReadout.hidden){
+   const items=rows.map(r=>({kind:r.kind,reference:r.reference,label:r.label,value:cm(r.distance),distance:r.distance}));
+   if(view.centerInfo){const c=view.centerInfo;items.push({kind:'center-x',reference:c.reference,label:'Вдоль сетки',value:cm(Math.abs(c.dx))+(c.dx<-.05?' влево':' вправо'),distance:c.dx},{kind:'center-y',reference:c.reference,label:'Поперёк сетки',value:cm(Math.abs(c.dy))+(c.dy<-.05?' вниз':' вверх'),distance:c.dy})}
+   ui.placementReadout.innerHTML='<span class="placement-readout-title">От центра:</span>'+items.map(r=>'<span class="placement-readout-item" data-kind="'+r.kind+'" data-reference-id="'+escape(r.reference)+'" data-distance-cm="'+r.distance+'"><span>'+escape(r.label)+'</span><strong>'+escape(r.value)+'</strong></span>').join('');
+  }else ui.placementReadout.replaceChildren();
+  ui.placementStrip.hidden=ui.transformModeBtn.hidden&&ui.placementReadout.hidden;
+ }
  function line(a,b,color,width=1.5,dash='',attrs=''){return '<line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke="'+color+'" stroke-width="'+width+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+attrs+'/>'}
  function textAt(p,text,color='#24586a'){const width=textWidth(text);return '<g><rect x="'+(p.x-width/2)+'" y="'+(p.y-12)+'" width="'+width+'" height="21" rx="4" fill="white" fill-opacity=".94"/><text x="'+p.x+'" y="'+(p.y+3)+'" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" fill="'+color+'">'+escape(text)+'</text></g>'}
  function metricGrid(){
@@ -134,18 +144,18 @@
   }
   gridCache=data;return data;
  }
- function overlay(view,includeDraft){
+ function overlay(view,includeDraft,labels){
   const s=state();let out='';
   if(s.visible){
-   if(s.showWalls)s.walls.filter(w=>w.visible).forEach(w=>{const a=toCanvas(w.a),b=toCanvas(w.b);out+=line(a,b,'#35748a',3)+textAt({x:(a.x+b.x)/2,y:(a.y+b.y)/2-13},w.name)});
-   if(view.point&&view.meta.visible){view.rows.forEach(r=>{out+=line(r.a,r.b,r.kind==='object'?'#9c6234':'#35748a',1.5,'4 3');if(G.distance(r.a,r.b)>8)out+=textAt({x:(r.a.x+r.b.x)/2,y:(r.a.y+r.b.y)/2},cm(r.distance))});const p=view.point;out+='<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="#a54532" stroke="white" stroke-width="1"/>'}
+   if(s.showWalls)s.walls.filter(w=>w.visible).forEach(w=>{const a=toCanvas(w.a),b=toCanvas(w.b);out+=line(a,b,'#35748a',3);if(labels)out+=textAt({x:(a.x+b.x)/2,y:(a.y+b.y)/2-13},w.name)});
+   if(view.point&&view.meta.visible){view.rows.forEach(r=>{out+=line(r.a,r.b,r.kind==='object'?'#9c6234':'#35748a',1.5,'4 3');if(labels&&G.distance(r.a,r.b)>8)out+=textAt({x:(r.a.x+r.b.x)/2,y:(r.a.y+r.b.y)/2},cm(r.distance))});const p=view.point;if(!includeDraft)out+='<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="#a54532" stroke="white" stroke-width="1"/>'}
   }
   if(includeDraft){const points=draft?[draft.a,draft.b]:drawing?.points||[];if(points.length){const a=toCanvas(points[0]),b=points[1]?toCanvas(points[1]):hover;out+=(b?line(a,b,'#9c6234',2,'6 4'):'')+'<circle cx="'+a.x+'" cy="'+a.y+'" r="5" fill="#9c6234"/>'+(b?'<circle cx="'+b.x+'" cy="'+b.y+'" r="5" fill="#9c6234"/>':'')}}
   return out;
  }
  function render(){
   if((drawing||draft)&&interactionState!==state()){drawing=null;draft=null;interactionState=null;hover=null;canvas.classList.remove('measurement-drawing');message('')}
-  syncControls();renderWalls();const view=readings(),grid=metricGrid();renderReadouts(view);svg.innerHTML=overlay(view,true);
+  syncControls();renderWalls();const view=readings(),grid=metricGrid();renderReadouts(view);renderPlacementReadout(view);svg.innerHTML=overlay(view,true,state().showLabels&&!window.VastuInteraction?.isDragging());
   if(renderedGridKey!==grid.key){metricSvg.innerHTML=grid.svg;metricSvg.dataset.stepCm=state().gridStepCm;renderedGridKey=grid.key}
   ui.metricGridStatus.textContent=!state().showGrid?'':!factor()?'Сначала задайте масштаб.':grid.tooDense?'Увеличьте размер клетки: сетка слишком частая.':'Одна клетка — '+cm(state().gridStepCm)+'. Сетка поворачивается вместе с планом.';
  }
@@ -157,14 +167,14 @@
   if(state().showWalls)state().walls.filter(w=>w.visible).forEach(w=>{const a=toCanvas(w.a),b=toCanvas(w.b);points.push(a,b);addText({x:(a.x+b.x)/2,y:(a.y+b.y)/2-13},w.name)});
   if(view.meta?.visible){view.rows.forEach(r=>{points.push(r.a,r.b);if(G.distance(r.a,r.b)>8)addText({x:(r.a.x+r.b.x)/2,y:(r.a.y+r.b.y)/2},cm(r.distance))});if(view.point)points.push({x:view.point.x-5,y:view.point.y-5},{x:view.point.x+5,y:view.point.y+5})}
   if(grid.legend)addText(grid.legend.point,grid.legend.label);
-  const result={gridSvg:grid.svg,svg:overlay(view,false)+(grid.legend?textAt(grid.legend.point,grid.legend.label):''),bounds:points.flatMap(p=>[{x:p.x-3,y:p.y-3},{x:p.x+3,y:p.y+3}])};snapshots.set(project,result);return result;
+  const result={gridSvg:grid.svg,svg:overlay(view,false,true)+(grid.legend?textAt(grid.legend.point,grid.legend.label):''),bounds:points.flatMap(p=>[{x:p.x-3,y:p.y-3},{x:p.x+3,y:p.y+3}])};snapshots.set(project,result);return result;
  }
  ui.measurementToggleBtn.onclick=()=>{ui.measurementTools.open=!ui.measurementTools.open;sceneChanged();if(ui.measurementTools.open)ui.measurementTools.scrollIntoView({block:'nearest'})};
  ui.measurementTools.addEventListener('toggle',sceneChanged);
  ui.scaleDrawBtn.onclick=()=>startDrawing('scale');ui.wallDrawBtn.onclick=()=>startDrawing('wall');ui.measurementCancelBtn.onclick=()=>cancelDrawing();
  ui.calibrationApplyBtn.onclick=()=>{const value=Number(ui.scaleLengthCm.value.trim().replace(',','.'));if(!draft||!Number.isFinite(value)||value<=0||value>1000000){message('Введите положительную длину в сантиметрах.');return}const c={...draft,lengthCm:value};changed(()=>state().calibration=c);cancelDrawing(false);message('Масштаб задан. Отметьте стены; для проверки можно внести контрольный замер другой стены.')};
  ui.scaleResetBtn.onclick=()=>changed(()=>state().calibration=null);
- [['measureVisible','visible'],['measureShowWalls','showWalls'],['metricGridVisible','showGrid'],['measureExport','export'],['measureShowCenter','showCenter']].forEach(([id,key])=>ui[id].onchange=()=>changed(()=>state()[key]=ui[id].checked));
+ [['measureVisible','visible'],['measureShowWalls','showWalls'],['metricGridVisible','showGrid'],['measureExport','export'],['measureShowCenter','showCenter'],['measureShowLabels','showLabels']].forEach(([id,key])=>ui[id].onchange=()=>changed(()=>state()[key]=ui[id].checked));
  ui.metricGridStep.onchange=()=>{const value=Number(ui.metricGridStep.value.trim().replace(',','.'));if(!Number.isFinite(value)||value<=0||value>1000000){ui.metricGridStep.value=state().gridStepCm;message('Введите положительный размер клетки в сантиметрах.');return}changed(()=>state().gridStepCm=value)};
  ui.objectMeasureVisible.onchange=()=>{const el=selected();if(el)changed(()=>editMeta(el).visible=ui.objectMeasureVisible.checked)};
  ui.measurementTarget.onchange=()=>{const el=selected();if(el)changed(()=>{editMeta(el).targetId=ui.measurementTarget.value;state().showObjects=true})};

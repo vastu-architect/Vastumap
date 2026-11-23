@@ -77,8 +77,9 @@
           <h3 class="measurement-step-title">3. Выберите объект на плане</h3>
           <p class="hint">Отступы от центра появятся в свойствах объекта.</p>
           <details class="measurement-display-options">
-            <summary>Сетка и экспорт</summary>
+            <summary>Вид разметки и экспорт</summary>
             <label class="switch-line"><input id="measureShowWalls" type="checkbox" checked> Стены и отступы</label>
+            <label class="switch-line"><input id="measureShowLabels" type="checkbox"> Подписи размеров на плане</label>
             <label class="switch-line"><input id="metricGridVisible" type="checkbox"> Клетчатая сетка</label>
             <label id="metricGridStepRow" hidden>Размер клетки, см<input id="metricGridStep" inputmode="decimal" value="25"></label>
             <p class="hint" id="metricGridStatus"></p>
@@ -138,6 +139,10 @@
           </div>
         </div>
       </div>
+      <div id="placementStrip" class="placement-strip" hidden>
+        <button id="transformModeBtn" class="transform-mode-action" type="button" aria-pressed="false" hidden>Размер и поворот</button>
+        <div id="placementReadout" class="placement-readout" role="group" aria-label="Расстояния от центра выбранного объекта" hidden></div>
+      </div>
       <footer class="statusbar">
         <span>Проект: новый анализ</span>
         <span class="status-ready">Сетка готова к настройке</span>
@@ -166,7 +171,7 @@
       </details>
 
       <section class="property-group active" data-properties="grid">
-        <p class="hint">Передвигайте сетку на плане, вращайте за оранжевую точку и изменяйте размер за маркеры.</p>
+        <p class="hint">Передвигайте сетку на плане. Для изменения размера и вращения включите «Размер и поворот».</p>
         <label class="switch-line"><input type="checkbox" id="lockGrid"> Зафиксировать слой</label>
         <div class="value-row"><label>Поворот</label><span class="value"><span id="gridDeg">0</span>&deg;</span></div>
         <div class="step-control"><button onclick="stepGrid(-1)">-1&deg;</button><input type="number" value="0" id="gridRot"><button onclick="stepGrid(1)">+1&deg;</button></div>
@@ -360,6 +365,7 @@
   <script src="measurement-geometry.js" defer></script>
   <script src="measurement-state.js" defer></script>
   <script src="script.js" defer></script>
+  <script src="object-interaction.js" defer></script>
   <script src="measurements.js" defer></script>
 </body>
 </html>
