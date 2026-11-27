@@ -690,6 +690,13 @@ input[type=number],input:not([type]),#labelText,select{
 .measurement-readout strong{white-space:nowrap;font-variant-numeric:tabular-nums}
 .measurement-wall-extra>summary{font-size:11px;padding:5px 0;color:var(--muted);cursor:pointer}
 .measurement-warning{color:#a54532!important}
+.measurement-sector-status:empty{display:none}
+.brahmasthan-tools{margin:0 0 16px;padding:12px 10px;border:1px solid var(--line);border-radius:10px}
+.brahmasthan-tools[hidden]{display:none}
+.brahmasthan-tools h3{margin:0 0 10px;font-size:13px}
+.brahmasthan-tools .switch-line{display:flex;align-items:center;gap:7px;margin:12px 0;font-size:12px}
+.brahmasthan-tools .hint{margin:8px 0 0}
+.brahmasthan-overlay{position:absolute;left:0;top:0;width:1600px;height:1200px;pointer-events:none;z-index:6;overflow:visible}
 .transform-mode-action{flex:none;margin:5px 8px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-soft);font-size:12px;min-height:36px}
 .transform-mode-action[aria-pressed="true"]{background:#e3edf1;border-color:var(--blue);color:var(--blue)}
 .transform-mode-action[hidden],.placement-strip[hidden],.placement-readout[hidden]{display:none}
@@ -712,7 +719,7 @@ input[type=number],input:not([type]),#labelText,select{
  .layers-panel:not(.mobile-objects-open)>:not(#measurementTools):not(.mobile-object-toggle){display:none}
  .layers-panel.mobile-objects-open{max-height:65vh;overflow-y:auto}
 }
-@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay{display:none!important}}
+@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay,.brahmasthan-tools{display:none!important}}
 
 #planImage{
   position:absolute;
@@ -973,7 +980,7 @@ input[type=number],input:not([type]),#labelText,select{
   height:480px;
   left:520px;
   top:330px;
-  border:2px solid rgba(65,111,145,.8);
+  border:0;
   border-radius:5px;
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -984,6 +991,9 @@ input[type=number],input:not([type]),#labelText,select{
   user-select:none;
   touch-action:none;
 }
+
+/* The frame must not shrink the cells used by sector measurements. */
+.vastu-grid::before{content:"";position:absolute;inset:0;border:2px solid rgba(65,111,145,.8);border-radius:inherit;pointer-events:none;z-index:1}
 
 .selected{outline:1px solid rgba(65,111,145,.85);outline-offset:2px}
 .selected::after{content:"";position:absolute;left:50%;top:50%;width:5px;height:5px;transform:translate(-50%,-50%);border:1px solid #fff;border-radius:50%;background:#a54532;pointer-events:none;z-index:2}

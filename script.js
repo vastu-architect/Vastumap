@@ -28,7 +28,7 @@ let measurementSceneChangePending=false;
 function notifyMeasurementSceneChanged(){
  if(measurementSceneChangePending)return;
  measurementSceneChangePending=true;
- queueMicrotask(()=>{measurementSceneChangePending=false;window.VastuInteraction?.sceneChanged();window.VastuMeasurements?.sceneChanged()});
+ queueMicrotask(()=>{measurementSceneChangePending=false;window.VastuInteraction?.sceneChanged();window.VastuBrahmasthan?.sceneChanged();window.VastuMeasurements?.sceneChanged()});
 }
 function clearSel(){if(drag)stop();document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));sel=null;selType="";window.VastuInteraction?.sceneChanged();showProperties("");refreshLayers();notifyMeasurementSceneChanged()}
 function isLayerVisible(el){return !el.dataset||el.dataset.visible!=="false"}
@@ -230,6 +230,7 @@ function allocateGridId(){
  const used=new Set([...canvas.querySelectorAll(".vastu-grid")].map(grid=>grid.dataset.gridId));
  const measurements=MeasurementState.get();
  if(measurements.activeGridId)used.add(measurements.activeGridId);
+ Object.keys(measurements.brahmasthans||{}).forEach(id=>used.add(id));
  Object.values(measurements.objects).forEach(object=>{if(object.gridId)used.add(object.gridId)});
  let index=gridCounter;
  while(used.has("grid-"+index))index++;
@@ -964,7 +965,7 @@ function addCorrection(categoryId,itemId,d={}){
  const caption=document.createElement("span");caption.className="correction-caption";caption.onmousedown=startCorrectionCaptionDrag;caption.ontouchstart=startCorrectionCaptionDrag;wrap.appendChild(caption);
  ["nw","n","ne","e","se","s","sw","w"].forEach(pos=>{const h=document.createElement("div");h.className="correction-handle "+pos;h.onmousedown=startCorrectionResize;h.ontouchstart=startCorrectionResize;wrap.appendChild(h)});
  const rotate=document.createElement("div");rotate.className="correction-rotate-handle";rotate.onmousedown=startCorrectionRot;rotate.ontouchstart=startCorrectionRot;wrap.appendChild(rotate);
- prepGeneric(wrap,"correction");canvas.appendChild(wrap);updateCorrectionArt(wrap);select(wrap,"correction");
+ prepGeneric(wrap,"correction");canvas.appendChild(wrap);updateCorrectionArt(wrap);select(wrap,"correction");return wrap;
 }
 function updCorrectionPanel(){
  if(selType!=="correction")return;
@@ -1400,6 +1401,7 @@ function ensureMeasurementObjectId(el){
  if(el.dataset.measurementId)return el.dataset.measurementId;
  const used=new Set([...canvas.querySelectorAll("[data-measurement-id]")].map(item=>item.dataset.measurementId));
  Object.keys(MeasurementState.get().objects).forEach(id=>used.add(id));
+ Object.values(MeasurementState.get().brahmasthans||{}).forEach(group=>group.rubies.forEach(id=>{if(id)used.add(id)}));
  Object.values(MeasurementState.get().objects).forEach(object=>{if(object.targetId)used.add(object.targetId)});
  let index=1;
  while(used.has("measure-"+index))index++;
@@ -1761,6 +1763,9 @@ function exportArea(p,planFrame,labels=[]){
  (p.footnotes||[]).forEach(n=>{if(n.visible!==false)includeExportRect(bounds,n.left,n.top,n.width,n.height)});
  (p.stickers||[]).forEach(s=>{if(s.visible!==false)includeExportRect(bounds,s.left,s.top,s.size,s.size)});
  labels.forEach(label=>includeExportRect(bounds,label.x,label.y,label.width,label.height,label.rotation||0));
+ (window.VastuBrahmasthan?.exportBounds?.(p)||[]).forEach(point=>{
+  if(Number.isFinite(point.x)&&Number.isFinite(point.y))includeExportPoint(bounds,point.x,point.y);
+ });
  if(p.measurements?.export){
   (window.VastuMeasurements?.exportBounds?.(p)||[]).forEach(point=>{
    if(Number.isFinite(point.x)&&Number.isFinite(point.y))includeExportPoint(bounds,point.x,point.y);
@@ -2025,6 +2030,7 @@ async function buildSVG(){
   }
   svg+=`</g>`;
  });
+ svg+=window.VastuBrahmasthan?.exportSVG?.(p)||"";
  p.axes.forEach(a=>{
  if(a.visible===false)return;
   const len=a.len,op=a.opacity/100,base=num(a.rotation,0);
