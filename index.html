@@ -160,15 +160,25 @@
       <details class="measurement-object-panel" id="objectMeasurements" open hidden>
         <summary>Положение объекта</summary>
         <label class="switch-line"><input type="checkbox" id="objectMeasureVisible" checked> Линии на плане</label>
+        <label class="switch-line"><input type="checkbox" id="measureShowSectors" checked> Границы сектора</label>
         <p class="hint">Все расстояния — от центра объекта</p>
+        <p class="hint measurement-sector-status" id="measurementSectorStatus"></p>
         <div id="measurementReadouts" class="measurement-readouts"></div>
         <details class="measurement-object-advanced">
-        <summary>Другой объект и центр сетки</summary>
+        <summary>Сетка отсчёта и другой объект</summary>
         <label>Расстояние до объекта<select id="measurementTarget"></select></label>
         <label class="switch-line"><input id="measureShowCenter" type="checkbox"> От центра васту-сетки</label>
         <label id="objectGridRow" hidden>Сетка отсчёта<select id="objectMeasureGrid"></select></label>
         </details>
       </details>
+
+      <section class="brahmasthan-tools" id="brahmasthanTools" hidden>
+        <h3>Брахмастан</h3>
+        <button class="full-action" id="nineRubiesBtn" type="button">9 рубинов</button>
+        <label class="switch-line"><input id="brahmasthanGridVisible" type="checkbox"> Подсетка 3×3</label>
+        <p class="hint">Повторное нажатие вернёт рубины в центры. Остальные объекты не перемещаются.</p>
+        <p class="hint" id="brahmasthanStatus" role="status"></p>
+      </section>
 
       <section class="property-group active" data-properties="grid">
         <p class="hint">Передвигайте сетку на плане. Для изменения размера и вращения включите «Размер и поворот».</p>
@@ -366,6 +376,7 @@
   <script src="measurement-state.js" defer></script>
   <script src="script.js" defer></script>
   <script src="object-interaction.js" defer></script>
+  <script src="brahmasthan.js" defer></script>
   <script src="measurements.js" defer></script>
 </body>
 </html>

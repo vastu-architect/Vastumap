@@ -65,6 +65,38 @@
   const clean=value=>Math.abs(value)<=tolerance?0:value;
   return{center,dx:clean(local.x-r.width/2),dy:clean(r.height/2-local.y),distance:distance(center,p)};
  }
+ // Cell ownership follows the grid's local axes, even when the grid is rotated.
+ // Internal edges belong to the cell on their right/below; outer edges are included.
+ function sectorAt(value,p){
+  const r=rect(value);p=point(p);
+  const local=rectLocal(r,p),tolerance=Number.EPSILON*32*Math.max(1,Math.abs(r.left),Math.abs(r.top),r.width,r.height,Math.abs(p.x),Math.abs(p.y));
+  if(local.x < -tolerance||local.y < -tolerance||local.x > r.width+tolerance||local.y > r.height+tolerance)return null;
+  const snap=(position,size)=>{
+   let result=Math.max(0,Math.min(size,position));
+   for(let i=1;i<3;i++){const cut=size*i/3;if(Math.abs(result-cut)<=tolerance)result=cut}
+   return result;
+  };
+  const x=snap(local.x,r.width),y=snap(local.y,r.height);
+  const column=x<r.width/3?0:x<r.width*2/3?1:2,row=y<r.height/3?0:y<r.height*2/3?1:2;
+  const tl=rectPoint(r,column/3,row/3),tr=rectPoint(r,(column+1)/3,row/3),br=rectPoint(r,(column+1)/3,(row+1)/3),bl=rectPoint(r,column/3,(row+1)/3);
+  const edges=[['top',tl,tr],['right',tr,br],['bottom',br,bl],['left',bl,tl]].map(([side,a,b])=>{
+   const nearest=nearestOnSegment(p,a,b);
+   return{side,a,b,point:nearest.point,distance:nearest.distance<=tolerance?0:nearest.distance};
+  });
+  return{index:row*3+column,row,column,center:rectPoint(r,(column+.5)/3,(row+.5)/3),edges};
+ }
+ // A 3x3 guide belongs only to the middle ninth of the parent grid.
+ function brahmasthanLayout(value){
+  const r=rect(value),lines=[],centers=[];
+  for(let i=1;i<3;i++){
+   const cut=1/3+i/9;
+   lines.push({a:rectPoint(r,cut,1/3),b:rectPoint(r,cut,2/3)});
+   lines.push({a:rectPoint(r,1/3,cut),b:rectPoint(r,2/3,cut)});
+  }
+  for(let row=0;row<3;row++)for(let column=0;column<3;column++)centers.push(rectPoint(r,1/3+(column+.5)/9,1/3+(row+.5)/9));
+  const tl=rectPoint(r,1/3,1/3),tr=rectPoint(r,2/3,1/3),br=rectPoint(r,2/3,2/3),bl=rectPoint(r,1/3,2/3);
+  return{lines,centers,outline:[{a:tl,b:tr},{a:tr,b:br},{a:br,b:bl},{a:bl,b:tl}],center:rectPoint(r,.5,.5)};
+ }
  // Bounds and origin use UNROTATED plan coordinates. axis:x is a vertical line;
  // axis:y is horizontal. Integer indices are relative to origin, including negatives.
  // At most 400 lines are generated. Dense/unrepresentable grids allocate no lines.
@@ -93,7 +125,7 @@
   }
   return{lines,tooDense:false};
  }
- const api=Object.freeze({distance,rotate,nearestOnSegment,rectPoint,rectLocal,gridCenterOffset,metricGrid});
+ const api=Object.freeze({distance,rotate,nearestOnSegment,rectPoint,rectLocal,gridCenterOffset,sectorAt,brahmasthanLayout,metricGrid});
  if(root)root.MeasurementGeometry=api;
  if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof window!=="undefined"?window:null);

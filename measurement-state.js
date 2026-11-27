@@ -2,7 +2,7 @@
 (function(global){
  "use strict";
  const BAD_KEYS=new Set(["__proto__","prototype","constructor"]);
- const MAX_COORD=1000000,MAX_LENGTH_CM=1000000,MAX_WALLS=500,MAX_OBJECTS=2000;
+ const MAX_COORD=1000000,MAX_LENGTH_CM=1000000,MAX_WALLS=500,MAX_OBJECTS=2000,MAX_BRAHMASTHANS=200;
  const own=(value,key)=>Object.prototype.hasOwnProperty.call(value,key);
  function fail(path,message){throw new Error("Измерения: поле «"+path+"» — "+message+".")}
  function safeTree(value,path="measurements",seen=new Set(),depth=0){
@@ -46,7 +46,7 @@
   return{a,b};
  }
  function defaults(){
-  return{version:1,calibration:null,walls:[],objects:{},visible:true,showWalls:true,showObjects:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
+  return{version:1,calibration:null,walls:[],objects:{},brahmasthans:{},visible:true,showWalls:true,showObjects:true,showSectors:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
  }
  function normalize(data){
   if(data===undefined)return defaults();
@@ -75,7 +75,22 @@
     result.objects[objectId]={visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,gridId:own(entry,"gridId")?id(entry.gridId,path+".gridId",{empty:true}):"",targetId:own(entry,"targetId")?id(entry.targetId,path+".targetId",{empty:true}):"",label:own(entry,"label")?text(entry.label,path+".label"):""};
    });
   }
-  ["visible","showWalls","showObjects","showCenter","showLabels","showGrid","export"].forEach(key=>{if(own(source,key))result[key]=bool(source[key],key)});
+  if(own(source,"brahmasthans")){
+   const groups=record(source.brahmasthans,"brahmasthans"),entries=Object.entries(groups),rubyIds=new Set();
+   if(entries.length>MAX_BRAHMASTHANS)fail("brahmasthans","слишком много сеток Брахмастана");
+   entries.forEach(([key,value])=>{
+    const path="brahmasthans."+key,gridId=id(key,path),entry=record(value,path);
+    if(!Array.isArray(entry.rubies)||entry.rubies.length!==9)fail(path+".rubies","ожидается список из девяти мест для рубинов");
+    const rubies=Array.from(entry.rubies,(ruby,index)=>{
+     const rubyId=id(ruby,path+".rubies["+index+"]",{empty:true});
+     if(rubyId&&rubyIds.has(rubyId))fail(path+".rubies["+index+"]","идентификатор рубина повторяется");
+     if(rubyId)rubyIds.add(rubyId);
+     return rubyId;
+    });
+    result.brahmasthans[gridId]={visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,rubies};
+   });
+  }
+  ["visible","showWalls","showObjects","showSectors","showCenter","showLabels","showGrid","export"].forEach(key=>{if(own(source,key))result[key]=bool(source[key],key)});
   if(own(source,"gridStepCm"))result.gridStepCm=number(source.gridStepCm,"gridStepCm",{positive:true,max:MAX_LENGTH_CM});
   if(own(source,"activeGridId"))result.activeGridId=id(source.activeGridId,"activeGridId",{empty:true});
   return result;
