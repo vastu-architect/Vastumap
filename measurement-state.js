@@ -46,7 +46,7 @@
   return{a,b};
  }
  function defaults(){
-  return{version:1,calibration:null,walls:[],objects:{},brahmasthans:{},visible:true,showWalls:true,showObjects:true,showSectors:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
+  return{version:1,calibration:null,walls:[],objects:{},brahmasthans:{},wallFreeAngle:false,wallSnap:true,wallBaseAngle:0,visible:true,showWalls:true,showObjects:true,showSectors:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
  }
  function normalize(data){
   if(data===undefined)return defaults();
@@ -90,7 +90,8 @@
     result.brahmasthans[gridId]={visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,rubies};
    });
   }
-  ["visible","showWalls","showObjects","showSectors","showCenter","showLabels","showGrid","export"].forEach(key=>{if(own(source,key))result[key]=bool(source[key],key)});
+  ["visible","showWalls","showObjects","showSectors","showCenter","showLabels","showGrid","wallFreeAngle","wallSnap","export"].forEach(key=>{if(own(source,key))result[key]=bool(source[key],key)});
+  if(own(source,"wallBaseAngle"))result.wallBaseAngle=number(source.wallBaseAngle,"wallBaseAngle",{min:-360,max:360});
   if(own(source,"gridStepCm"))result.gridStepCm=number(source.gridStepCm,"gridStepCm",{positive:true,max:MAX_LENGTH_CM});
   if(own(source,"activeGridId"))result.activeGridId=id(source.activeGridId,"activeGridId",{empty:true});
   return result;

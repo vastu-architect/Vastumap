@@ -690,6 +690,25 @@ input[type=number],input:not([type]),#labelText,select{
 .measurement-readout strong{white-space:nowrap;font-variant-numeric:tabular-nums}
 .measurement-wall-extra>summary{font-size:11px;padding:5px 0;color:var(--muted);cursor:pointer}
 .measurement-warning{color:#a54532!important}
+.wall-drawing-controls{padding:8px 0;border-bottom:1px solid var(--line)}
+.measurement-wall.is-selected{background:#eef4f6;border-radius:6px}
+#wallFreeAngleBtn{width:100%;min-height:36px;border:1px solid var(--line);background:var(--surface-soft);border-radius:7px}
+#wallFreeAngleBtn[aria-pressed="true"]{background:#e3edf1;border-color:var(--blue);color:var(--blue)}
+.wall-direction-options>summary{font-size:11px;color:var(--muted);padding:7px 0;cursor:pointer}
+.wall-direction-options button{width:100%;min-height:34px}
+.wall-properties{padding:0 0 15px;margin-bottom:15px;border-bottom:1px solid var(--line)}
+.wall-properties[hidden]{display:none}
+.wall-properties h3{font-size:14px;margin:0 0 14px}
+.wall-properties>label{display:block;font-size:12px;margin:12px 0 6px}
+.wall-properties output{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.wall-angle-control{display:flex;gap:6px;align-items:center}
+.wall-angle-control input{width:70px;min-width:0;flex:1;padding:8px;border:1px solid var(--line);border-radius:6px}
+.wall-angle-control input[readonly]{background:var(--surface-soft);color:var(--muted)}
+.wall-angle-control button,#wallPropertiesDoneBtn{min-height:36px;padding:7px 10px;font-size:12px}
+.wall-edit-overlay{position:absolute;left:0;top:0;width:1600px;height:1200px;overflow:visible;pointer-events:none;z-index:48}
+.wall-edit-overlay [data-wall-hit]{pointer-events:stroke;cursor:pointer}
+.wall-edit-overlay [data-wall-handle]{pointer-events:all;cursor:crosshair;touch-action:none}
+.canvas.wall-endpoint-editing{touch-action:none;cursor:crosshair}
 .measurement-sector-status:empty{display:none}
 .brahmasthan-tools{margin:0 0 16px;padding:12px 10px;border:1px solid var(--line);border-radius:10px}
 .brahmasthan-tools[hidden]{display:none}
@@ -719,7 +738,7 @@ input[type=number],input:not([type]),#labelText,select{
  .layers-panel:not(.mobile-objects-open)>:not(#measurementTools):not(.mobile-object-toggle){display:none}
  .layers-panel.mobile-objects-open{max-height:65vh;overflow-y:auto}
 }
-@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay,.brahmasthan-tools{display:none!important}}
+@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay,.brahmasthan-tools,.wall-properties,.wall-edit-overlay{display:none!important}}
 
 #planImage{
   position:absolute;

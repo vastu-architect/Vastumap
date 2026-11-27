@@ -1,7 +1,7 @@
 /* Readouts only: this module never moves or centers scene objects. */
 (function(){
  'use strict';
- const G=window.MeasurementGeometry,S=window.MeasurementState,NS='http://www.w3.org/2000/svg',ORIGIN={x:800,y:600};
+ const G=window.MeasurementGeometry,S=window.MeasurementState,W=window.VastuWallTools,NS='http://www.w3.org/2000/svg',ORIGIN={x:800,y:600};
  const ids=['measurementTools','measurementToggleBtn','measureVisible','measureScaleStatus','scaleDrawBtn','scaleLengthRow','scaleLengthCm','calibrationApplyBtn','scaleResetBtn','measureInstruction','measurementCancelBtn','wallDrawBtn','measurementWalls','measureShowWalls','metricGridVisible','metricGridStep','metricGridStepRow','metricGridStatus','measureExport','objectMeasurements','objectMeasureVisible','objectMeasureGrid','objectGridRow','measureShowCenter','measurementTarget','measurementReadouts','measureShowLabels','placementStrip','placementReadout','transformModeBtn','measureShowSectors','measurementSectorStatus'];
  const ui=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
  const SELECTOR='.vastu-grid,.purusha-grid,.axis-group,.overlay-wrap,.correction-object,.text-label,.footnote,.sticker';
@@ -75,16 +75,17 @@
   optionList(ui.objectMeasureGrid,items,id,'Авто по положению объекта');
  }
  function renderWalls(){
-  const s=state(),signature=JSON.stringify([s.walls,s.calibration]);if(signature===wallSignature&&wallState===s)return;
+  const s=state(),signature=JSON.stringify([s.walls,s.calibration,s.visible,s.showWalls,W.selectedWallId()]);if(signature===wallSignature&&wallState===s)return;
   const openWalls=new Set([...ui.measurementWalls.querySelectorAll('.measurement-wall-extra[open]')].map(node=>node.closest('[data-wall-id]').dataset.wallId));
   wallSignature=signature;wallState=s;ui.measurementWalls.replaceChildren();
   if(!s.walls.length){const p=document.createElement('p');p.className='hint';p.textContent='Отметьте две точки внутренней стороны нужной стены.';ui.measurementWalls.appendChild(p)}
   s.walls.forEach((wall,index)=>{
-   const row=document.createElement('div');row.className='measurement-wall'+(wall.visible?'':' is-hidden');row.dataset.wallId=wall.id;
+   const row=document.createElement('div');row.className='measurement-wall'+(wall.visible?'':' is-hidden');row.dataset.wallId=wall.id;row.classList.toggle('is-selected',W.selectedWallId()===wall.id);
    const controls=document.createElement('div');controls.className='measurement-wall-row';
    const name=document.createElement('input');name.value=wall.name;name.maxLength=160;name.setAttribute('aria-label','Название стены '+(index+1));name.onchange=()=>changed(()=>wall.name=name.value.trim()||'Стена '+(index+1));
    const eye=document.createElement('button');eye.type='button';eye.textContent=wall.visible?'◉':'○';eye.setAttribute('aria-label',(wall.visible?'Скрыть ':'Показать ')+wall.name);eye.onclick=()=>changed(()=>wall.visible=!wall.visible);
    const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Удалить '+wall.name);remove.onclick=()=>changed(()=>state().walls=state().walls.filter(w=>w.id!==wall.id));controls.append(name,eye,remove);row.appendChild(controls);
+   const editOnPlan=document.createElement('button');editOnPlan.type='button';editOnPlan.className='measurement-text-action';editOnPlan.dataset.editWall=wall.id;editOnPlan.textContent='Править на плане';editOnPlan.onclick=()=>W.selectWall(wall.id);editOnPlan.disabled=!wall.visible||!s.visible||!s.showWalls;row.appendChild(editOnPlan);
    const extra=document.createElement('details');extra.className='measurement-wall-extra';extra.open=openWalls.has(wall.id);const summary=document.createElement('summary');summary.textContent='Размер и правка';extra.appendChild(summary);
    const label=document.createElement('label');label.textContent='Контрольный замер, см';const actual=document.createElement('input');actual.inputMode='decimal';actual.value=wall.actualCm??'';actual.placeholder='Необязательно';actual.dataset.actualCm=wall.id;actual.setAttribute('aria-label','Контрольная длина '+wall.name);
    actual.onchange=()=>{const raw=actual.value.trim(),value=raw?Number(raw.replace(',','.')):null;if(value!==null&&(!Number.isFinite(value)||value<=0||value>1000000)){actual.value=wall.actualCm??'';message('Введите положительную длину в сантиметрах.');return}changed(()=>wall.actualCm=value)};label.appendChild(actual);extra.appendChild(label);
@@ -98,18 +99,20 @@
  function startDrawing(type,editId=''){
   if(!planData||!plan.complete||!plan.naturalWidth){ui.measurementTools.open=true;message('Сначала загрузите план квартиры.');return}
   if(type==='wall'&&!editId&&state().walls.length>=500){message('В проекте уже 500 стен.');return}
-  drawing={type,editId,points:[]};draft=null;interactionState=state();hover=null;ui.measurementTools.open=true;canvas.classList.add('measurement-drawing');
-  message(type==='scale'?'Отметьте начало и конец отрезка известной длины.':'Отметьте начало и конец внутренней стороны стены.');sceneChanged();
+  W.beginDrawing(type);drawing={type,editId,points:[]};draft=null;interactionState=state();hover=null;ui.measurementTools.open=true;canvas.classList.add('measurement-drawing');
+  message(type==='scale'?'Отметьте начало и конец отрезка известной длины.':type==='direction'?'Отметьте две точки вдоль прямой стены. Она задаст направление новых стен.':'Отметьте начало и конец внутренней стороны стены.');sceneChanged();
  }
- function cancelDrawing(clear=true){drawing=null;draft=null;interactionState=null;hover=null;canvas.classList.remove('measurement-drawing');if(clear)message('');sceneChanged()}
+ function cancelDrawing(clear=true){W.cancelDrawing();drawing=null;draft=null;interactionState=null;hover=null;canvas.classList.remove('measurement-drawing');if(clear)message('');sceneChanged()}
  function takePoint(event){
-  if(!drawing)return;event.preventDefault();event.stopImmediatePropagation();suppressClickUntil=performance.now()+500;const p=toPlan(screenPoint(event));
+  if(!drawing)return;event.preventDefault();event.stopImmediatePropagation();suppressClickUntil=performance.now()+500;const raw=toPlan(screenPoint(event)),p=drawing.type==='wall'?W.constrainDrawingPoint(drawing.points[0]||null,raw,drawing.editId):raw;
   if(!drawing.points.length){drawing.points.push(p);message('Теперь отметьте вторую точку.');sceneChanged();return}
   const a=drawing.points[0],b=p;if(G.distance(a,b)<2){message('Отметьте вторую точку дальше от первой.');return}
   if(drawing.type==='scale'){draft={a,b};drawing=null;hover=null;canvas.classList.remove('measurement-drawing');ui.scaleLengthRow.hidden=false;message('Введите реальную длину в сантиметрах.');sceneChanged();ui.scaleLengthCm.focus();return}
-  const id=drawing.editId;
-  changed(()=>{const old=state().walls.find(w=>w.id===id);if(old){old.a=a;old.b=b}else{let n=1;while(state().walls.some(w=>w.id==='wall-'+n))n++;state().walls.push({id:'wall-'+n,name:'Стена '+n,a,b,visible:true,actualCm:null})}state().visible=true;state().showWalls=true});
-  cancelDrawing(false);message('Стена добавлена. Выберите объект, чтобы увидеть отступы.');
+  if(drawing.type==='direction'){W.setBaseDirection(a,b);cancelDrawing(false);message('Направление стен задано. Существующие стены не изменены.');return}
+  if(!W.validWall({a,b})){message('Отметьте допустимые точки стены.');return}
+  const id=drawing.editId;let selectedId=id;
+  changed(()=>{const old=state().walls.find(w=>w.id===id);if(old){old.a=a;old.b=b}else{let n=1;while(state().walls.some(w=>w.id==='wall-'+n))n++;selectedId='wall-'+n;state().walls.push({id:selectedId,name:'Стена '+n,a,b,visible:true,actualCm:null})}state().visible=true;state().showWalls=true});
+  cancelDrawing(false);W.selectWall(selectedId);message(id?'Стена переотмечена.':'Стена добавлена. Концы можно уточнить на плане.');
  }
  function readings(){
   const s=state(),el=selected(),scale=factor();if(!el||!visible(el))return{el,point:null,rows:[],centerInfo:null,sectorInfo:null};
@@ -159,15 +162,23 @@
  function overlay(view,includeDraft,labels){
   const s=state();let out='';
   if(s.visible){
-   if(s.showWalls)s.walls.filter(w=>w.visible).forEach(w=>{const a=toCanvas(w.a),b=toCanvas(w.b);out+=line(a,b,'#35748a',3);if(labels)out+=textAt({x:(a.x+b.x)/2,y:(a.y+b.y)/2-13},w.name)});
+   if(s.showWalls)s.walls.filter(w=>w.visible).forEach(w=>{const shown=includeDraft?W.wallForDisplay(w):w,a=toCanvas(shown.a),b=toCanvas(shown.b);out+=line(a,b,'#35748a',3);if(labels)out+=textAt({x:(a.x+b.x)/2,y:(a.y+b.y)/2-13},w.name)});
    if(view.point&&view.meta.visible){view.rows.forEach(r=>{out+=line(r.a,r.b,r.kind==='object'?'#9c6234':r.kind==='sector'?'#69856b':'#35748a',1.5,'4 3');if(labels&&G.distance(r.a,r.b)>8)out+=textAt({x:(r.a.x+r.b.x)/2,y:(r.a.y+r.b.y)/2},cm(r.distance))});const p=view.point;if(!includeDraft)out+='<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="#a54532" stroke="white" stroke-width="1"/>'}
   }
-  if(includeDraft){const points=draft?[draft.a,draft.b]:drawing?.points||[];if(points.length){const a=toCanvas(points[0]),b=points[1]?toCanvas(points[1]):hover;out+=(b?line(a,b,'#9c6234',2,'6 4'):'')+'<circle cx="'+a.x+'" cy="'+a.y+'" r="5" fill="#9c6234"/>'+(b?'<circle cx="'+b.x+'" cy="'+b.y+'" r="5" fill="#9c6234"/>':'')}}
+  if(includeDraft){
+   const points=draft?[draft.a,draft.b]:drawing?.points||[];
+   if(points.length){
+    const start=points[0],rawEnd=points[1]|| (hover?toPlan(hover):null),end=rawEnd&&drawing?.type==='wall'?W.constrainDrawingPoint(start,rawEnd,drawing.editId):rawEnd;
+    const a=toCanvas(start),b=end?toCanvas(end):null;
+    W.setDrawingPreview(drawing?.type==='wall'?start:null,drawing?.type==='wall'?end:null);
+    out+=(b?line(a,b,'#9c6234',2,'6 4',' data-wall-draft="'+(drawing?.type==='wall'?'true':'false')+'"'):'')+'<circle cx="'+a.x+'" cy="'+a.y+'" r="5" fill="#9c6234"/>'+(b?'<circle cx="'+b.x+'" cy="'+b.y+'" r="5" fill="#9c6234"/>':'');
+   }else W.setDrawingPreview(null,null);
+  }
   return out;
  }
  function render(){
   if((drawing||draft)&&interactionState!==state()){drawing=null;draft=null;interactionState=null;hover=null;canvas.classList.remove('measurement-drawing');message('')}
-  syncControls();renderWalls();const view=readings(),grid=metricGrid();renderReadouts(view);renderPlacementReadout(view);svg.innerHTML=overlay(view,true,state().showLabels&&!window.VastuInteraction?.isDragging());
+  W.sceneChanged();syncControls();renderWalls();const view=readings(),grid=metricGrid();renderReadouts(view);renderPlacementReadout(view);svg.innerHTML=overlay(view,true,state().showLabels&&!window.VastuInteraction?.isDragging());
   if(renderedGridKey!==grid.key){metricSvg.innerHTML=grid.svg;metricSvg.dataset.stepCm=state().gridStepCm;renderedGridKey=grid.key}
   ui.metricGridStatus.textContent=!state().showGrid?'':!factor()?'Сначала задайте масштаб.':grid.tooDense?'Увеличьте размер клетки: сетка слишком частая.':'Одна клетка — '+cm(state().gridStepCm)+'. Сетка поворачивается вместе с планом.';
  }
@@ -192,12 +203,13 @@
  ui.measurementTarget.onchange=()=>{const el=selected();if(el)changed(()=>{editMeta(el).targetId=ui.measurementTarget.value;state().showObjects=true})};
  ui.objectMeasureGrid.onchange=()=>{const el=selected();if(el)changed(()=>{editMeta(el).gridId=ui.objectMeasureGrid.value;state().activeGridId=ui.objectMeasureGrid.value})};
  const mobileToggle=document.getElementById('mobileObjectsToggle');mobileToggle.onclick=()=>{const open=document.querySelector('.layers-panel').classList.toggle('mobile-objects-open');mobileToggle.setAttribute('aria-expanded',String(open))};
- canvas.addEventListener('pointerdown',takePoint,true);
+ W.attach({factor,toPlan,toCanvas,screenPoint,startDrawing,cancelDrawing,redraw:sceneChanged,isDrawing:()=>!!drawing||!!draft,toolsOpen:()=>ui.measurementTools.open});
+ canvas.addEventListener('pointerdown',event=>{suppressClickUntil=0;takePoint(event)},true);
  ['mousedown','touchstart'].forEach(type=>canvas.addEventListener(type,e=>{if(drawing){e.preventDefault();e.stopImmediatePropagation()}},{capture:true,passive:false}));
  canvas.addEventListener('pointermove',e=>{if(drawing){hover=screenPoint(e);sceneChanged()}},true);
  canvas.addEventListener('click',e=>{if(drawing||performance.now()<suppressClickUntil){e.preventDefault();e.stopImmediatePropagation()}},true);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(drawing||draft)){e.preventDefault();cancelDrawing()}},true);
  window.addEventListener('resize',()=>{centerWorkspace();sceneChanged()});plan.addEventListener('load',sceneChanged);
- new MutationObserver(records=>{if(records.some(r=>r.target!==svg&&r.target!==metricSvg&&r.target.id!=='brahmasthanOverlay'&&!r.target.closest?.('#brahmasthanOverlay')&&!svg.contains(r.target)&&!metricSvg.contains(r.target)))sceneChanged()}).observe(canvas,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style','class','data-visible','data-rotation','data-rot','data-width','data-height']});
+ new MutationObserver(records=>{if(records.some(r=>r.target!==svg&&r.target!==metricSvg&&r.target.id!=='wallEditOverlay'&&!r.target.closest?.('#wallEditOverlay')&&r.target.id!=='brahmasthanOverlay'&&!r.target.closest?.('#brahmasthanOverlay')&&!svg.contains(r.target)&&!metricSvg.contains(r.target)))sceneChanged()}).observe(canvas,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style','class','data-visible','data-rotation','data-rot','data-width','data-height']});
  window.VastuMeasurements={sceneChanged,captureExport,exportGridSVG:p=>captureExport(p).gridSvg,exportSVG:p=>captureExport(p).svg,exportBounds:p=>captureExport(p).bounds};sceneChanged();
 })();
