@@ -45,6 +45,41 @@
   const nearest=t===0?{...a}:t===1?{...b}:resultPoint(a.x+t*dx,a.y+t*dy);
   return{point:nearest,distance:distance(p,nearest),t,atEndpoint:t===0||t===1};
  }
+ // Angles follow plan coordinates (positive clockwise because y increases down).
+ function wallDirection(degrees){
+  finite(degrees,"angle");
+  const angle=((degrees%360)+360)%360;
+  if(angle===0)return{x:1,y:0};
+  if(angle===90)return{x:0,y:1};
+  if(angle===180)return{x:-1,y:0};
+  if(angle===270)return{x:0,y:-1};
+  const radians=angle*Math.PI/180;
+  return{x:Math.cos(radians),y:Math.sin(radians)};
+ }
+ function wallAngle(a,b){
+  a=point(a,"a");b=point(b,"b");
+  if(distance(a,b)===0)throw new RangeError("Wall endpoints must differ");
+  const degrees=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+  return degrees===-180?180:degrees===0?0:degrees;
+ }
+ function wallPointAtAngle(a,length,degrees){
+  a=point(a,"a");finite(length,"length");
+  if(length<0)throw new RangeError("length must not be negative");
+  const direction=wallDirection(degrees);
+  return resultPoint(a.x+length*direction.x,a.y+length*direction.y);
+ }
+ // Editing can keep an existing direction; new walls choose the nearest base axis.
+ function constrainWallPoint(a,p,{free=false,baseAngle=0,directionAngle=null}={}){
+  a=point(a,"a");p=point(p);distance(a,p);
+  if(typeof free!=="boolean")throw new TypeError("free must be a boolean");
+  finite(baseAngle,"baseAngle");
+  if(directionAngle!==null)finite(directionAngle,"directionAngle");
+  if(free)return p;
+  const direction=wallDirection(directionAngle===null?baseAngle:directionAngle),dx=p.x-a.x,dy=p.y-a.y;
+  const along=dx*direction.x+dy*direction.y,across=-dx*direction.y+dy*direction.x;
+  if(directionAngle!==null||Math.abs(along)>=Math.abs(across))return resultPoint(a.x+along*direction.x,a.y+along*direction.y);
+  return resultPoint(a.x-across*direction.y,a.y+across*direction.x);
+ }
  // u/v are fractions of width/height. Finite values outside 0..1 allow extrapolation.
  function rectPoint(value,u,v){
   const r=rect(value);finite(u,"u");finite(v,"v");
@@ -125,7 +160,7 @@
   }
   return{lines,tooDense:false};
  }
- const api=Object.freeze({distance,rotate,nearestOnSegment,rectPoint,rectLocal,gridCenterOffset,sectorAt,brahmasthanLayout,metricGrid});
+ const api=Object.freeze({distance,rotate,nearestOnSegment,wallAngle,wallPointAtAngle,constrainWallPoint,rectPoint,rectLocal,gridCenterOffset,sectorAt,brahmasthanLayout,metricGrid});
  if(root)root.MeasurementGeometry=api;
  if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof window!=="undefined"?window:null);

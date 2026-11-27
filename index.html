@@ -73,6 +73,17 @@
           <p class="measurement-instruction" id="measureInstruction" role="status"></p>
           <button id="measurementCancelBtn" type="button" hidden>Отменить разметку</button>
           <div class="measurement-section-head"><strong>2. Отметьте стены</strong><button id="wallDrawBtn" type="button">+ Стена</button></div>
+          <div class="wall-drawing-controls">
+            <button id="wallFreeAngleBtn" type="button" aria-pressed="false">Свободный угол</button>
+            <label class="switch-line"><input id="wallSnap" type="checkbox" checked> Привязка к концам стен</label>
+            <details class="wall-direction-options">
+              <summary>Направление стен на плане</summary>
+              <p class="hint">Для наклонённого JPEG отметьте прямую стену. Новые стены будут параллельны или перпендикулярны ей.</p>
+              <button id="wallDirectionBtn" type="button">Задать направление стен</button>
+              <button id="wallDirectionResetBtn" class="measurement-text-action" type="button" hidden>Сбросить направление</button>
+              <p id="wallDirectionStatus" class="hint"></p>
+            </details>
+          </div>
           <div id="measurementWalls" class="measurement-walls"></div>
           <h3 class="measurement-step-title">3. Выберите объект на плане</h3>
           <p class="hint">Отступы от центра появятся в свойствах объекта.</p>
@@ -156,6 +167,16 @@
         <h2 id="propertyTitle">Сетка направлений</h2>
         <button class="delete-layer" onclick="delSel()">Удалить</button>
       </div>
+
+      <section class="wall-properties" id="wallProperties" hidden>
+        <h3 id="wallPropertyName">Стена</h3>
+        <div class="value-row"><label>Длина по плану</label><output id="wallPropertyLength"></output></div>
+        <label for="wallPropertyAngle">Угол, °</label>
+        <div class="wall-angle-control"><input id="wallPropertyAngle" type="text" inputmode="decimal"><button id="wallAngleApplyBtn" type="button">Применить</button></div>
+        <p class="hint">0° — вправо, 90° — вниз. Для изменения угла включите «Свободный угол».</p>
+        <p id="wallEditStatus" class="hint" role="status"></p>
+        <button id="wallPropertiesDoneBtn" type="button">Готово</button>
+      </section>
 
       <details class="measurement-object-panel" id="objectMeasurements" open hidden>
         <summary>Положение объекта</summary>
@@ -377,6 +398,7 @@
   <script src="script.js" defer></script>
   <script src="object-interaction.js" defer></script>
   <script src="brahmasthan.js" defer></script>
+  <script src="wall-tools.js" defer></script>
   <script src="measurements.js" defer></script>
 </body>
 </html>
