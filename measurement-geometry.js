@@ -160,7 +160,28 @@
   }
   return{lines,tooDense:false};
  }
- const api=Object.freeze({distance,rotate,nearestOnSegment,wallAngle,wallPointAtAngle,constrainWallPoint,rectPoint,rectLocal,gridCenterOffset,sectorAt,brahmasthanLayout,metricGrid});
+ // Display graduations are specified in physical units. The caller converts its
+ // preferred screen spacing to minStepCm; neither ruler geometry nor scale changes.
+ function rulerTicks(lengthCm,minStepCm,maxTicks=400){
+  finite(lengthCm,"lengthCm");finite(minStepCm,"minStepCm");
+  if(lengthCm<0||minStepCm<=0)throw new RangeError("Ruler length and spacing must be nonnegative/positive");
+  if(!Number.isInteger(maxTicks)||maxTicks<2||maxTicks>400)throw new RangeError("maxTicks must be an integer from 2 to 400");
+  function niceStep(value){
+   const power=10**Math.floor(Math.log10(value));
+   if(!Number.isFinite(power)||power===0)throw new RangeError("Ruler spacing exceeds the supported range");
+   const ratio=value/power,multiple=ratio<=1?1:ratio<=2?2:ratio<=5?5:10,result=power*multiple;
+   if(!Number.isFinite(result)||result<=0)throw new RangeError("Ruler spacing exceeds the supported range");
+   return result;
+  }
+  const stepCm=niceStep(Math.max(minStepCm,lengthCm/(maxTicks-1)));
+  const majorStepCm=niceStep(Math.max(stepCm*5,minStepCm*8)),count=Math.min(maxTicks,Math.floor(lengthCm/stepCm+Number.EPSILON*8)+1),ticks=[];
+  for(let index=0;index<count;index++){
+   const cm=Math.min(lengthCm,index*stepCm),ratio=cm/majorStepCm;
+   ticks.push({cm,index,major:Math.abs(ratio-Math.round(ratio))<1e-8});
+  }
+  return{stepCm,majorStepCm,ticks};
+ }
+ const api=Object.freeze({distance,rotate,nearestOnSegment,wallAngle,wallPointAtAngle,constrainWallPoint,rectPoint,rectLocal,gridCenterOffset,sectorAt,brahmasthanLayout,metricGrid,rulerTicks});
  if(root)root.MeasurementGeometry=api;
  if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof window!=="undefined"?window:null);

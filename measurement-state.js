@@ -2,7 +2,7 @@
 (function(global){
  "use strict";
  const BAD_KEYS=new Set(["__proto__","prototype","constructor"]);
- const MAX_COORD=1000000,MAX_LENGTH_CM=1000000,MAX_WALLS=500,MAX_OBJECTS=2000,MAX_BRAHMASTHANS=200;
+ const MAX_COORD=1000000,MAX_LENGTH_CM=1000000,MAX_WALLS=500,MAX_OBJECTS=2000,MAX_BRAHMASTHANS=200,MAX_ROOMS=100;
  const own=(value,key)=>Object.prototype.hasOwnProperty.call(value,key);
  function fail(path,message){throw new Error("Измерения: поле «"+path+"» — "+message+".")}
  function safeTree(value,path="measurements",seen=new Set(),depth=0){
@@ -45,8 +45,17 @@
   if(Math.hypot(a.x-b.x,a.y-b.y)<0.000001)fail(path,"начальная и конечная точки должны различаться");
   return{a,b};
  }
+ function idList(value,path,max){
+  if(!Array.isArray(value)||value.length>max)fail(path,"ожидается список не более "+max+" идентификаторов");
+  const ids=new Set();
+  return Array.from(value,(entry,index)=>{
+   const entryId=id(entry,path+"["+index+"]");
+   if(ids.has(entryId))fail(path+"["+index+"]","идентификатор повторяется");
+   ids.add(entryId);return entryId;
+  });
+ }
  function defaults(){
-  return{version:1,calibration:null,walls:[],objects:{},brahmasthans:{},wallFreeAngle:false,wallSnap:true,wallBaseAngle:0,visible:true,showWalls:true,showObjects:true,showSectors:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
+  return{version:1,calibration:null,walls:[],rooms:[],activeRoomId:"",objects:{},brahmasthans:{},ruler:{visible:false,a:{x:500,y:600},b:{x:1100,y:600}},wallFreeAngle:false,wallSnap:true,wallBaseAngle:0,visible:true,showWalls:true,showObjects:true,showSectors:true,showCenter:false,showLabels:false,showGrid:false,gridStepCm:25,export:false,activeGridId:""};
  }
  function normalize(data){
   if(data===undefined)return defaults();
@@ -57,6 +66,21 @@
    const calibration=record(source.calibration,"calibration");
    result.calibration={...endpoints(calibration,"calibration"),lengthCm:number(calibration.lengthCm,"calibration.lengthCm",{positive:true,max:MAX_LENGTH_CM})};
   }
+  if(own(source,"rooms")){
+   if(!Array.isArray(source.rooms)||source.rooms.length>MAX_ROOMS)fail("rooms","ожидается список не более "+MAX_ROOMS+" комнат");
+   const ids=new Set();
+   result.rooms=Array.from(source.rooms,(room,index)=>{
+    const path="rooms["+index+"]",entry=record(room,path),roomId=id(entry.id,path+".id");
+    if(ids.has(roomId))fail(path+".id","идентификатор комнаты повторяется");
+    ids.add(roomId);
+    return{id:roomId,name:text(entry.name,path+".name",160),collapsed:own(entry,"collapsed")?bool(entry.collapsed,path+".collapsed"):false};
+   });
+  }
+  if(own(source,"activeRoomId"))result.activeRoomId=id(source.activeRoomId,"activeRoomId",{empty:true});
+  if(own(source,"ruler")){
+   const ruler=record(source.ruler,"ruler");
+   result.ruler={visible:own(ruler,"visible")?bool(ruler.visible,"ruler.visible"):false,...endpoints(ruler,"ruler")};
+  }
   if(own(source,"walls")){
    if(!Array.isArray(source.walls)||source.walls.length>MAX_WALLS)fail("walls","ожидается список не более "+MAX_WALLS+" стен");
    const ids=new Set();
@@ -64,7 +88,7 @@
     const path="walls["+index+"]",entry=record(wall,path),wallId=id(entry.id,path+".id");
     if(ids.has(wallId))fail(path+".id","идентификатор стены повторяется");
     ids.add(wallId);
-    return{id:wallId,name:own(entry,"name")?text(entry.name,path+".name"):"",...endpoints(entry,path),visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,actualCm:own(entry,"actualCm")&&entry.actualCm!==null?number(entry.actualCm,path+".actualCm",{positive:true,max:MAX_LENGTH_CM}):null};
+    return{id:wallId,name:own(entry,"name")?text(entry.name,path+".name"):"",roomId:own(entry,"roomId")?id(entry.roomId,path+".roomId",{empty:true}):"",...endpoints(entry,path),visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,actualCm:own(entry,"actualCm")&&entry.actualCm!==null?number(entry.actualCm,path+".actualCm",{positive:true,max:MAX_LENGTH_CM}):null};
    });
   }
   if(own(source,"objects")){
@@ -72,7 +96,7 @@
    if(entries.length>MAX_OBJECTS)fail("objects","слишком много объектов измерений");
    entries.forEach(([key,value])=>{
     const path="objects."+key,objectId=id(key,path),entry=record(value,path);
-    result.objects[objectId]={visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,gridId:own(entry,"gridId")?id(entry.gridId,path+".gridId",{empty:true}):"",targetId:own(entry,"targetId")?id(entry.targetId,path+".targetId",{empty:true}):"",label:own(entry,"label")?text(entry.label,path+".label"):""};
+    result.objects[objectId]={visible:own(entry,"visible")?bool(entry.visible,path+".visible"):true,gridId:own(entry,"gridId")?id(entry.gridId,path+".gridId",{empty:true}):"",targetId:own(entry,"targetId")?id(entry.targetId,path+".targetId",{empty:true}):"",label:own(entry,"label")?text(entry.label,path+".label"):"",wallIds:own(entry,"wallIds")?idList(entry.wallIds,path+".wallIds",MAX_WALLS):[]};
    });
   }
   if(own(source,"brahmasthans")){

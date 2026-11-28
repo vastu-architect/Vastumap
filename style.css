@@ -664,6 +664,8 @@ input[type=number],input:not([type]),#labelText,select{
 .measurement-tools input:not([type="checkbox"]),.measurement-tools select,.measurement-object-panel select{width:100%;min-width:0;margin-top:5px;padding:7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
 .measurement-tools button,.measurement-object-panel button{font-size:11px;white-space:normal}
 #measurementToggleBtn{width:auto;min-width:65px;padding:0 8px;font-size:12px}
+#rulerToggleBtn{width:auto;min-width:65px;padding:0 8px;font-size:12px}
+#rulerToggleBtn[aria-pressed="true"]{background:#e3edf1;color:var(--blue)}
 #focusModeBtn{width:auto;min-width:82px;font-size:12px;white-space:nowrap}
 .measurement-text-action{padding:5px 0;background:transparent;border:0;text-decoration:underline;color:var(--muted)}
 .measurement-instruction{font-size:12px;line-height:1.45;color:var(--blue);margin:8px 0}
@@ -690,6 +692,38 @@ input[type=number],input:not([type]),#labelText,select{
 .measurement-readout strong{white-space:nowrap;font-variant-numeric:tabular-nums}
 .measurement-wall-extra>summary{font-size:11px;padding:5px 0;color:var(--muted);cursor:pointer}
 .measurement-warning{color:#a54532!important}
+.room-list-controls{padding:10px 0;border-bottom:1px solid var(--line)}
+.room-list-controls>button{width:100%;min-height:34px}
+.room-create-row[hidden],#wallRoomTargetRow[hidden]{display:none}
+.room-create-actions{display:flex;gap:6px}.room-create-actions button{flex:1;min-height:34px}
+.measurement-room{margin:7px 0;border:1px solid var(--line);border-radius:7px;padding:0 7px}
+.measurement-room>summary{padding:10px 2px;cursor:pointer;font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.measurement-room-tools{padding:0 0 8px;border-bottom:1px solid var(--line)}
+.measurement-room-tools button{padding:5px 0;background:transparent;color:var(--muted);text-decoration:underline}
+.object-wall-targets{margin:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.object-wall-targets>summary{font-size:12px;padding:10px 0;cursor:pointer}
+#objectWallSummary{color:var(--muted);font-size:11px}
+.object-wall-actions{display:flex;gap:10px;margin:0 0 9px}
+.object-wall-actions button{padding:5px 0;background:transparent;color:var(--muted);text-decoration:underline}
+.object-wall-room{margin:5px 0 10px}
+.object-wall-room>label{font-weight:600}
+#objectWallChoices label{display:flex;align-items:center;gap:7px;line-height:1.4;overflow-wrap:anywhere}
+.object-wall-choice{padding-left:14px}
+.ruler-properties{margin:0 0 16px;padding:0 0 15px;border-bottom:1px solid var(--line)}
+.ruler-properties[hidden]{display:none}
+.ruler-properties h3{font-size:14px;margin:0 0 14px}
+.ruler-properties>label{display:block;font-size:12px;margin:12px 0 6px}
+.ruler-properties output{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ruler-actions{display:flex;gap:6px;margin-top:10px}.ruler-actions button{min-height:36px;padding:7px 12px;font-size:12px}
+.manual-ruler-overlay{position:absolute;left:0;top:0;width:1600px;height:1200px;pointer-events:none;z-index:60;overflow:visible}
+.manual-ruler-overlay [data-ruler-body]{pointer-events:all;cursor:move;touch-action:none}
+.manual-ruler-overlay [data-ruler-handle]{pointer-events:all;cursor:crosshair;touch-action:none}
+.canvas.ruler-dragging{touch-action:none}
+@media(min-width:721px) and (max-width:1100px){
+ .work-area{grid-template-rows:auto auto minmax(0,1fr) auto 37px}
+ .canvas-toolbar{flex-wrap:wrap;gap:6px;padding:8px 12px}
+ .canvas-title{width:100%}.canvas-title span{display:none}
+}
 .wall-drawing-controls{padding:8px 0;border-bottom:1px solid var(--line)}
 .measurement-wall.is-selected{background:#eef4f6;border-radius:6px}
 #wallFreeAngleBtn{width:100%;min-height:36px;border:1px solid var(--line);background:var(--surface-soft);border-radius:7px}
@@ -732,13 +766,14 @@ input[type=number],input:not([type]),#labelText,select{
  .work-area{grid-template-rows:auto auto minmax(0,1fr) auto 37px}
  .canvas-toolbar{gap:6px;flex-wrap:wrap;justify-content:flex-start;min-height:61px;padding:8px 12px}
  .canvas-title{width:100%}.canvas-title span{display:none}.canvas-title strong{font-size:12px}
- .zoom-controls{gap:4px;max-width:100%}#focusModeBtn{width:auto;min-width:82px;font-size:12px;white-space:nowrap}
+ .zoom-controls{gap:3px;max-width:100%;flex-wrap:wrap}#focusModeBtn{width:auto;min-width:82px;font-size:12px;white-space:nowrap}
+ #rulerToggleBtn{min-width:62px;padding:0 6px}
  .measurement-tools{margin:8px 0}
  .mobile-object-toggle{display:block;margin:8px 0;min-height:35px;flex:0 0 auto}
  .layers-panel:not(.mobile-objects-open)>:not(#measurementTools):not(.mobile-object-toggle){display:none}
  .layers-panel.mobile-objects-open{max-height:65vh;overflow-y:auto}
 }
-@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay,.brahmasthan-tools,.wall-properties,.wall-edit-overlay{display:none!important}}
+@media print{.measurement-tools,.measurement-object-panel,.measurement-overlay,.brahmasthan-tools,.wall-properties,.wall-edit-overlay,.ruler-properties,.manual-ruler-overlay{display:none!important}}
 
 #planImage{
   position:absolute;

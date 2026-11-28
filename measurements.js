@@ -1,7 +1,7 @@
 /* Readouts only: this module never moves or centers scene objects. */
 (function(){
  'use strict';
- const G=window.MeasurementGeometry,S=window.MeasurementState,W=window.VastuWallTools,NS='http://www.w3.org/2000/svg',ORIGIN={x:800,y:600};
+ const G=window.MeasurementGeometry,S=window.MeasurementState,W=window.VastuWallTools,R=window.VastuRooms,NS='http://www.w3.org/2000/svg',ORIGIN={x:800,y:600};
  const ids=['measurementTools','measurementToggleBtn','measureVisible','measureScaleStatus','scaleDrawBtn','scaleLengthRow','scaleLengthCm','calibrationApplyBtn','scaleResetBtn','measureInstruction','measurementCancelBtn','wallDrawBtn','measurementWalls','measureShowWalls','metricGridVisible','metricGridStep','metricGridStepRow','metricGridStatus','measureExport','objectMeasurements','objectMeasureVisible','objectMeasureGrid','objectGridRow','measureShowCenter','measurementTarget','measurementReadouts','measureShowLabels','placementStrip','placementReadout','transformModeBtn','measureShowSectors','measurementSectorStatus'];
  const ui=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
  const SELECTOR='.vastu-grid,.purusha-grid,.axis-group,.overlay-wrap,.correction-object,.text-label,.footnote,.sticker';
@@ -21,7 +21,7 @@
  function objectId(el){return ensureMeasurementObjectId(el)}
  function selected(){return sel&&sel!==plan&&sel.matches(SELECTOR)?sel:null}
  function center(el){const r=el.getBoundingClientRect();return screenPoint({clientX:r.left+r.width/2,clientY:r.top+r.height/2})}
- function meta(el){const id=objectId(el);return Object.hasOwn(state().objects,id)?state().objects[id]:{visible:true,gridId:'',targetId:'',label:''}}
+ function meta(el){const id=objectId(el);return Object.hasOwn(state().objects,id)?state().objects[id]:{visible:true,gridId:'',targetId:'',label:'',wallIds:[]}}
  function editMeta(el){const id=objectId(el);if(!Object.hasOwn(state().objects,id))state().objects[id]={...meta(el)};return state().objects[id]}
  function objectName(el,index=0){
   const m=meta(el);if(m.label)return m.label;
@@ -75,31 +75,32 @@
   optionList(ui.objectMeasureGrid,items,id,'Авто по положению объекта');
  }
  function renderWalls(){
-  const s=state(),signature=JSON.stringify([s.walls,s.calibration,s.visible,s.showWalls,W.selectedWallId()]);if(signature===wallSignature&&wallState===s)return;
+  const s=state(),signature=JSON.stringify([s.walls,s.rooms,s.calibration,s.visible,s.showWalls,W.selectedWallId()]);if(signature===wallSignature&&wallState===s)return;
   const openWalls=new Set([...ui.measurementWalls.querySelectorAll('.measurement-wall-extra[open]')].map(node=>node.closest('[data-wall-id]').dataset.wallId));
   wallSignature=signature;wallState=s;ui.measurementWalls.replaceChildren();
-  if(!s.walls.length){const p=document.createElement('p');p.className='hint';p.textContent='Отметьте две точки внутренней стороны нужной стены.';ui.measurementWalls.appendChild(p)}
-  s.walls.forEach((wall,index)=>{
+  if(!s.walls.length&&!s.rooms.length){const p=document.createElement('p');p.className='hint';p.textContent='Отметьте две точки внутренней стороны нужной стены.';ui.measurementWalls.appendChild(p)}
+  const renderWallRow=(wall,index)=>{
    const row=document.createElement('div');row.className='measurement-wall'+(wall.visible?'':' is-hidden');row.dataset.wallId=wall.id;row.classList.toggle('is-selected',W.selectedWallId()===wall.id);
    const controls=document.createElement('div');controls.className='measurement-wall-row';
    const name=document.createElement('input');name.value=wall.name;name.maxLength=160;name.setAttribute('aria-label','Название стены '+(index+1));name.onchange=()=>changed(()=>wall.name=name.value.trim()||'Стена '+(index+1));
    const eye=document.createElement('button');eye.type='button';eye.textContent=wall.visible?'◉':'○';eye.setAttribute('aria-label',(wall.visible?'Скрыть ':'Показать ')+wall.name);eye.onclick=()=>changed(()=>wall.visible=!wall.visible);
-   const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Удалить '+wall.name);remove.onclick=()=>changed(()=>state().walls=state().walls.filter(w=>w.id!==wall.id));controls.append(name,eye,remove);row.appendChild(controls);
+   const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Удалить '+wall.name);remove.onclick=()=>changed(()=>R.deleteWall(wall.id));controls.append(name,eye,remove);row.appendChild(controls);
    const editOnPlan=document.createElement('button');editOnPlan.type='button';editOnPlan.className='measurement-text-action';editOnPlan.dataset.editWall=wall.id;editOnPlan.textContent='Править на плане';editOnPlan.onclick=()=>W.selectWall(wall.id);editOnPlan.disabled=!wall.visible||!s.visible||!s.showWalls;row.appendChild(editOnPlan);
-   const extra=document.createElement('details');extra.className='measurement-wall-extra';extra.open=openWalls.has(wall.id);const summary=document.createElement('summary');summary.textContent='Размер и правка';extra.appendChild(summary);
+   const extra=document.createElement('details');extra.className='measurement-wall-extra';extra.open=openWalls.has(wall.id);const summary=document.createElement('summary');summary.textContent='Размер и правка';extra.appendChild(summary);R.appendWallRoomField(extra,wall);
    const label=document.createElement('label');label.textContent='Контрольный замер, см';const actual=document.createElement('input');actual.inputMode='decimal';actual.value=wall.actualCm??'';actual.placeholder='Необязательно';actual.dataset.actualCm=wall.id;actual.setAttribute('aria-label','Контрольная длина '+wall.name);
    actual.onchange=()=>{const raw=actual.value.trim(),value=raw?Number(raw.replace(',','.')):null;if(value!==null&&(!Number.isFinite(value)||value<=0||value>1000000)){actual.value=wall.actualCm??'';message('Введите положительную длину в сантиметрах.');return}changed(()=>wall.actualCm=value)};label.appendChild(actual);extra.appendChild(label);
    if(wall.actualCm){const use=document.createElement('button');use.type='button';use.className='measurement-text-action';use.textContent='Взять за основу масштаба';use.onclick=()=>changed(()=>state().calibration={a:{...wall.a},b:{...wall.b},lengthCm:wall.actualCm});extra.appendChild(use)}
    const edit=document.createElement('button');edit.type='button';edit.className='measurement-text-action';edit.textContent='Переотметить стену';edit.onclick=()=>startDrawing('wall',wall.id);extra.appendChild(edit);row.appendChild(extra);
    const scale=factor(),length=document.createElement('small');
    if(scale){const predicted=G.distance(wall.a,wall.b)*scale;length.textContent='По плану '+cm(predicted);if(wall.actualCm){const difference=predicted-wall.actualCm;length.textContent+='; замер '+cm(wall.actualCm)+'; разница '+cm(difference);length.dataset.differenceCm=difference;if(Math.abs(difference)/wall.actualCm>.02){length.classList.add('measurement-warning');length.textContent+='. Проверьте план и замер.'}}}
-   else length.textContent='Задайте масштаб для размеров в сантиметрах';row.appendChild(length);ui.measurementWalls.appendChild(row);
-  });
+   else length.textContent='Задайте масштаб для размеров в сантиметрах';row.appendChild(length);return row;
+  };
+  R.renderWalls(ui.measurementWalls,renderWallRow);
  }
  function startDrawing(type,editId=''){
   if(!planData||!plan.complete||!plan.naturalWidth){ui.measurementTools.open=true;message('Сначала загрузите план квартиры.');return}
   if(type==='wall'&&!editId&&state().walls.length>=500){message('В проекте уже 500 стен.');return}
-  W.beginDrawing(type);drawing={type,editId,points:[]};draft=null;interactionState=state();hover=null;ui.measurementTools.open=true;canvas.classList.add('measurement-drawing');
+  window.VastuRuler?.deactivate();W.beginDrawing(type);drawing={type,editId,points:[]};draft=null;interactionState=state();hover=null;ui.measurementTools.open=true;canvas.classList.add('measurement-drawing');
   message(type==='scale'?'Отметьте начало и конец отрезка известной длины.':type==='direction'?'Отметьте две точки вдоль прямой стены. Она задаст направление новых стен.':'Отметьте начало и конец внутренней стороны стены.');sceneChanged();
  }
  function cancelDrawing(clear=true){W.cancelDrawing();drawing=null;draft=null;interactionState=null;hover=null;canvas.classList.remove('measurement-drawing');if(clear)message('');sceneChanged()}
@@ -111,14 +112,14 @@
   if(drawing.type==='direction'){W.setBaseDirection(a,b);cancelDrawing(false);message('Направление стен задано. Существующие стены не изменены.');return}
   if(!W.validWall({a,b})){message('Отметьте допустимые точки стены.');return}
   const id=drawing.editId;let selectedId=id;
-  changed(()=>{const old=state().walls.find(w=>w.id===id);if(old){old.a=a;old.b=b}else{let n=1;while(state().walls.some(w=>w.id==='wall-'+n))n++;selectedId='wall-'+n;state().walls.push({id:selectedId,name:'Стена '+n,a,b,visible:true,actualCm:null})}state().visible=true;state().showWalls=true});
+  changed(()=>{const old=state().walls.find(w=>w.id===id);if(old){old.a=a;old.b=b}else{selectedId=R.allocateWallId();state().walls.push({id:selectedId,name:'Стена '+selectedId.slice(5),a,b,visible:true,actualCm:null,roomId:R.activeRoomId()})}state().visible=true;state().showWalls=true});
   cancelDrawing(false);W.selectWall(selectedId);message(id?'Стена переотмечена.':'Стена добавлена. Концы можно уточнить на плане.');
  }
  function readings(){
   const s=state(),el=selected(),scale=factor();if(!el||!visible(el))return{el,point:null,rows:[],centerInfo:null,sectorInfo:null};
   const p=center(el),m=meta(el),rows=[],sector=s.showSectors?sectorInfo(el,p):null;let centerInfo=null;
   if(scale&&sector?.sector){const names={top:'Верхняя граница',right:'Правая граница',bottom:'Нижняя граница',left:'Левая граница'};sector.sector.edges.forEach(edge=>rows.push({kind:'sector',side:edge.side,reference:sector.grid.dataset.gridId+':sector-'+sector.sector.index,label:names[edge.side],distance:edge.distance*scale,a:p,b:edge.point}))}
-  if(scale&&s.showWalls)s.walls.filter(w=>w.visible).forEach(w=>{const near=G.nearestOnSegment(p,toCanvas(w.a),toCanvas(w.b));rows.push({kind:'wall',reference:w.id,label:w.name+(near.atEndpoint?' — до угла':''),distance:near.distance*scale,a:p,b:near.point})});
+  if(scale&&s.showWalls)R.selectedWalls(m).filter(w=>w.visible).forEach(w=>{const near=G.nearestOnSegment(p,toCanvas(w.a),toCanvas(w.b));rows.push({kind:'wall',reference:w.id,label:w.name+(near.atEndpoint?' — до угла':''),distance:near.distance*scale,a:p,b:near.point})});
   if(scale&&s.showObjects&&m.targetId){const target=objects().find(o=>objectId(o)===m.targetId&&visible(o));if(target){const q=center(target);rows.push({kind:'object',reference:m.targetId,label:'До '+objectName(target),distance:G.distance(p,q)*scale,a:p,b:q})}}
   if(scale&&s.showCenter){const grid=referenceGrid(el);if(grid&&visible(grid)){const offset=G.gridCenterOffset(rect(grid),p);centerInfo={reference:grid.dataset.gridId,dx:offset.dx*scale,dy:offset.dy*scale};rows.push({kind:'center',reference:grid.dataset.gridId,label:'До центра сетки',distance:offset.distance*scale,a:p,b:offset.center})}}
   return{el,point:p,rows,centerInfo,sectorInfo:sector,meta:m};
@@ -133,7 +134,7 @@
   let html='';const headings={sector:'До границ сектора',wall:'Отступы до стен',object:'Между центрами',center:'От центра васту-сетки'};
   Object.entries(headings).forEach(([kind,title])=>{const rows=view.rows.filter(r=>r.kind===kind);if(!rows.length)return;html+='<h4>'+title+'</h4>';rows.forEach(r=>html+=readout(kind,r.reference,r.label,cm(r.distance),r.distance,r.side));if(kind==='center'&&view.centerInfo){const c=view.centerInfo;html+=readout('center-x',c.reference,'Вдоль сетки',cm(Math.abs(c.dx))+(c.dx<-.05?' влево':' вправо'),c.dx)+readout('center-y',c.reference,'Поперёк сетки',cm(Math.abs(c.dy))+(c.dy<-.05?' вниз':' вверх'),c.dy)}});
   if(state().showCenter&&!view.centerInfo)html+='<p class="hint">Выберите видимую васту-сетку для отсчёта.</p>';
-  output.innerHTML=html||'<p class="hint">Отметьте нужные стены или выберите второй объект.</p>';
+  output.innerHTML=html||'<p class="hint">'+(state().walls.length?'Выберите стены в «Измерять до стен» или второй объект.':'Отметьте нужные стены или выберите второй объект.')+'</p>';
  }
  function renderPlacementReadout(view){
   const rows=view.rows||[];
@@ -178,7 +179,7 @@
  }
  function render(){
   if((drawing||draft)&&interactionState!==state()){drawing=null;draft=null;interactionState=null;hover=null;canvas.classList.remove('measurement-drawing');message('')}
-  W.sceneChanged();syncControls();renderWalls();const view=readings(),grid=metricGrid();renderReadouts(view);renderPlacementReadout(view);svg.innerHTML=overlay(view,true,state().showLabels&&!window.VastuInteraction?.isDragging());
+  W.sceneChanged();window.VastuRuler?.sceneChanged();syncControls();R.syncControls();renderWalls();const view=readings(),grid=metricGrid();renderReadouts(view);renderPlacementReadout(view);svg.innerHTML=overlay(view,true,state().showLabels&&!window.VastuInteraction?.isDragging());
   if(renderedGridKey!==grid.key){metricSvg.innerHTML=grid.svg;metricSvg.dataset.stepCm=state().gridStepCm;renderedGridKey=grid.key}
   ui.metricGridStatus.textContent=!state().showGrid?'':!factor()?'Сначала задайте масштаб.':grid.tooDense?'Увеличьте размер клетки: сетка слишком частая.':'Одна клетка — '+cm(state().gridStepCm)+'. Сетка поворачивается вместе с планом.';
  }
@@ -203,6 +204,8 @@
  ui.measurementTarget.onchange=()=>{const el=selected();if(el)changed(()=>{editMeta(el).targetId=ui.measurementTarget.value;state().showObjects=true})};
  ui.objectMeasureGrid.onchange=()=>{const el=selected();if(el)changed(()=>{editMeta(el).gridId=ui.objectMeasureGrid.value;state().activeGridId=ui.objectMeasureGrid.value})};
  const mobileToggle=document.getElementById('mobileObjectsToggle');mobileToggle.onclick=()=>{const open=document.querySelector('.layers-panel').classList.toggle('mobile-objects-open');mobileToggle.setAttribute('aria-expanded',String(open))};
+ R.attach({changed,selected,meta,editMeta,redraw:sceneChanged,message});
+ window.VastuRuler?.attach({factor,toPlan,toCanvas,screenPoint,cancelDrawing,redraw:sceneChanged,isDrawing:()=>!!drawing||!!draft});
  W.attach({factor,toPlan,toCanvas,screenPoint,startDrawing,cancelDrawing,redraw:sceneChanged,isDrawing:()=>!!drawing||!!draft,toolsOpen:()=>ui.measurementTools.open});
  canvas.addEventListener('pointerdown',event=>{suppressClickUntil=0;takePoint(event)},true);
  ['mousedown','touchstart'].forEach(type=>canvas.addEventListener(type,e=>{if(drawing){e.preventDefault();e.stopImmediatePropagation()}},{capture:true,passive:false}));
@@ -210,6 +213,6 @@
  canvas.addEventListener('click',e=>{if(drawing||performance.now()<suppressClickUntil){e.preventDefault();e.stopImmediatePropagation()}},true);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(drawing||draft)){e.preventDefault();cancelDrawing()}},true);
  window.addEventListener('resize',()=>{centerWorkspace();sceneChanged()});plan.addEventListener('load',sceneChanged);
- new MutationObserver(records=>{if(records.some(r=>r.target!==svg&&r.target!==metricSvg&&r.target.id!=='wallEditOverlay'&&!r.target.closest?.('#wallEditOverlay')&&r.target.id!=='brahmasthanOverlay'&&!r.target.closest?.('#brahmasthanOverlay')&&!svg.contains(r.target)&&!metricSvg.contains(r.target)))sceneChanged()}).observe(canvas,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style','class','data-visible','data-rotation','data-rot','data-width','data-height']});
+ new MutationObserver(records=>{if(records.some(r=>r.target!==svg&&r.target!==metricSvg&&r.target.id!=='manualRulerOverlay'&&!r.target.closest?.('#manualRulerOverlay')&&r.target.id!=='wallEditOverlay'&&!r.target.closest?.('#wallEditOverlay')&&r.target.id!=='brahmasthanOverlay'&&!r.target.closest?.('#brahmasthanOverlay')&&!svg.contains(r.target)&&!metricSvg.contains(r.target)))sceneChanged()}).observe(canvas,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style','class','data-visible','data-rotation','data-rot','data-width','data-height']});
  window.VastuMeasurements={sceneChanged,captureExport,exportGridSVG:p=>captureExport(p).gridSvg,exportSVG:p=>captureExport(p).svg,exportBounds:p=>captureExport(p).bounds};sceneChanged();
 })();
