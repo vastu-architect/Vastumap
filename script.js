@@ -1,7 +1,7 @@
 let sel=null,selType="",gridCounter=0,labelCounter=0,footnoteCounter=0,stickerCounter=0,axisCounter=0,overlayCounter=0,purushaCounter=0,correctionCounter=0,captionGroupCounter=0,correctionGroups={},planData="",lastPlanRot=0,drag=null,zoomLevel=1,historyStack=[],redoStack=[],isRestoring=false,projectBaseName="vastu-project",exportBaseName="vastu-map";
 const canvas=document.getElementById("canvas"),plan=document.getElementById("planImage");
 plan.dataset.visible="true";
-const PROJECT_VERSION="4.5";
+const PROJECT_VERSION="4.6";
 const AUTOSAVE_KEY="vastu-studio-autosave-v1";
 let planDataRefCounter=0;
 let autosaveTimer=null,autosavePaused=false,recoveryPending=false;
@@ -28,7 +28,7 @@ let measurementSceneChangePending=false;
 function notifyMeasurementSceneChanged(){
  if(measurementSceneChangePending)return;
  measurementSceneChangePending=true;
- queueMicrotask(()=>{measurementSceneChangePending=false;window.VastuInteraction?.sceneChanged();window.VastuBrahmasthan?.sceneChanged();window.VastuMeasurements?.sceneChanged()});
+ queueMicrotask(()=>{measurementSceneChangePending=false;window.VastuInteraction?.sceneChanged();window.VastuBrahmasthan?.sceneChanged();window.VastuRuler?.sceneChanged();window.VastuMeasurements?.sceneChanged()});
 }
 function clearSel(){if(drag)stop();document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));sel=null;selType="";window.VastuInteraction?.sceneChanged();showProperties("");refreshLayers();notifyMeasurementSceneChanged()}
 function isLayerVisible(el){return !el.dataset||el.dataset.visible!=="false"}
@@ -1606,6 +1606,30 @@ function migrateProject(value){
   if(group.opacity!==undefined)group.opacity=projectNumber(group.opacity,"correctionGroups."+key+".opacity",{min:0,max:100});
   p.correctionGroups[key]=group;
  });
+ // Freeze the old automatic wall readouts as explicit choices when importing an older file.
+ // New 4.6 objects start without wall references; adding another room never attaches them.
+ const legacyWallTargets=!version||Number(version[1])<4||(Number(version[1])===4&&Number(version[2])<6);
+ if(legacyWallTargets&&p.measurements.walls.length){
+  const wallIds=p.measurements.walls.map(wall=>wall.id),used=new Set([...measurementIds,...Object.keys(p.measurements.objects)]);
+  Object.values(p.measurements.objects).forEach(object=>{if(object.targetId)used.add(object.targetId)});
+  Object.values(p.measurements.brahmasthans).forEach(group=>group.rubies.forEach(id=>{if(id)used.add(id)}));
+  let nextId=1;
+  lists.forEach(key=>p[key].forEach(item=>{
+   if(!item.measurementId){while(used.has('measure-'+nextId))nextId++;item.measurementId='measure-'+nextId++;used.add(item.measurementId)}
+   const id=item.measurementId,old=project.measurements?.objects;
+   if(old&&Object.hasOwn(old,id)&&Object.hasOwn(old[id],'wallIds'))return;
+   const entry=Object.hasOwn(p.measurements.objects,id)?p.measurements.objects[id]:{visible:true,gridId:'',targetId:'',label:''};
+   p.measurements.objects[id]={...entry,wallIds:[...wallIds]};
+  }));
+  // Old saves can contain preferences for deleted objects. Make room for live
+  // objects only when necessary, without changing any existing scene preference.
+  const liveIds=new Set(lists.flatMap(key=>p[key].map(item=>item.measurementId)));
+  let count=Object.keys(p.measurements.objects).length;
+  if(count>2000)Object.keys(p.measurements.objects).forEach(id=>{
+   if(count>2000&&!liveIds.has(id)){delete p.measurements.objects[id];count--}
+  });
+  p.measurements=MeasurementState.normalize(p.measurements);
+ }
  return p;
 }
 function clearProjectElements(){

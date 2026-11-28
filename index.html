@@ -84,6 +84,14 @@
               <p id="wallDirectionStatus" class="hint"></p>
             </details>
           </div>
+          <div class="room-list-controls">
+            <button id="roomAddBtn" type="button">+ Комната</button>
+            <div id="roomCreateRow" class="room-create-row" hidden>
+              <label>Название комнаты<input id="roomNameInput" maxlength="160" placeholder="Например, кухня"></label>
+              <div class="room-create-actions"><button id="roomCreateBtn" type="button">Добавить</button><button id="roomCreateCancelBtn" type="button">Отмена</button></div>
+            </div>
+            <label id="wallRoomTargetRow" hidden>Новые стены в комнате<select id="wallRoomTarget"><option value="">Без комнаты</option></select></label>
+          </div>
           <div id="measurementWalls" class="measurement-walls"></div>
           <h3 class="measurement-step-title">3. Выберите объект на плане</h3>
           <p class="hint">Отступы от центра появятся в свойствах объекта.</p>
@@ -128,6 +136,7 @@
         </div>
         <div class="zoom-controls">
           <button id="measurementToggleBtn" type="button" aria-controls="measurementTools" aria-expanded="false">Размеры</button>
+          <button id="rulerToggleBtn" type="button" aria-pressed="false">Линейка</button>
           <button class="focus-action" id="focusModeBtn" onclick="toggleCorrectionFocus()">Фокус: выкл</button>
           <button onclick="zoomAll(-0.1)">-</button>
           <span><span id="zoomTxt">100</span>%</span>
@@ -178,12 +187,26 @@
         <button id="wallPropertiesDoneBtn" type="button">Готово</button>
       </section>
 
+      <section class="ruler-properties" id="rulerProperties" hidden>
+        <h3>Линейка</h3>
+        <div class="value-row"><label>Длина</label><output id="rulerLength"></output></div>
+        <label for="rulerAngle">Угол, °</label>
+        <div class="wall-angle-control"><input id="rulerAngle" type="text" inputmode="decimal"><button id="rulerAngleApplyBtn" type="button">Применить</button></div>
+        <div class="ruler-actions"><button id="rulerHorizontalBtn" type="button">0°</button><button id="rulerVerticalBtn" type="button">90°</button><button id="rulerHideBtn" type="button">Скрыть</button></div>
+        <p id="rulerStatus" class="hint" role="status">Передвигайте линейку за середину, конец — для длины и поворота.</p>
+      </section>
+
       <details class="measurement-object-panel" id="objectMeasurements" open hidden>
         <summary>Положение объекта</summary>
         <label class="switch-line"><input type="checkbox" id="objectMeasureVisible" checked> Линии на плане</label>
         <label class="switch-line"><input type="checkbox" id="measureShowSectors" checked> Границы сектора</label>
         <p class="hint">Все расстояния — от центра объекта</p>
         <p class="hint measurement-sector-status" id="measurementSectorStatus"></p>
+        <details id="objectWallTargets" class="object-wall-targets">
+          <summary>Измерять до стен <span id="objectWallSummary"></span></summary>
+          <div class="object-wall-actions"><button id="objectWallsAllBtn" type="button">Выбрать все</button><button id="objectWallsClearBtn" type="button">Снять выбор</button></div>
+          <div id="objectWallChoices"></div>
+        </details>
         <div id="measurementReadouts" class="measurement-readouts"></div>
         <details class="measurement-object-advanced">
         <summary>Сетка отсчёта и другой объект</summary>
@@ -399,6 +422,8 @@
   <script src="object-interaction.js" defer></script>
   <script src="brahmasthan.js" defer></script>
   <script src="wall-tools.js" defer></script>
+  <script src="room-tools.js" defer></script>
+  <script src="ruler.js" defer></script>
   <script src="measurements.js" defer></script>
 </body>
 </html>
